@@ -397,6 +397,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         optimizer_D.step()
 
         sys.stdout.write('.')
+        sys.stdout.flush()
 
         if i_iter % eval_every == 0 and i_iter != 0:
             model.eval()
@@ -418,6 +419,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                     evaluator.sample(gt, output, ignore_value=ignore_label)
 
                     sys.stdout.write('+')
+                    sys.stdout.flush()
 
             per_class_iou = evaluator.score()
             mean_iou = per_class_iou.mean()
