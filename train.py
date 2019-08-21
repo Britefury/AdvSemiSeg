@@ -426,6 +426,9 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         optimizer.step()
         optimizer_D.step()
 
+        sys.stdout.write('.')
+        sys.stdout.flush()
+
         if i_iter % eval_every == 0 and i_iter != 0:
             model.eval()
             with torch.no_grad():
@@ -447,6 +450,9 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
                     evaluator.sample(gt, output, ignore_value=ignore_label)
 
+                    sys.stdout.write('+')
+                    sys.stdout.flush()
+
             per_class_iou = evaluator.score()
             mean_iou = per_class_iou.mean()
 
@@ -455,6 +461,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             loss_D_value /= eval_every
             loss_semi_value /= eval_every
             loss_semi_adv_value /= eval_every
+
+            sys.stdout.write('\n')
 
             print(
                 'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi = {5:.3f}, loss_semi_adv = {6:.3f}'.format(
