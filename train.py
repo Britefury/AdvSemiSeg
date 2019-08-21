@@ -385,7 +385,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 _, batch = next(trainloader_gt_iter)
 
             _, labels_gt, _, _ = batch
-            D_gt_v = one_hot(labels_gt)
+            D_gt_v = one_hot(labels_gt.long().to(torch_device))
             valid_mask_gt = (labels_gt != ignore_label).float()[:, None, :, :]
 
             D_out = model_D(D_gt_v)
