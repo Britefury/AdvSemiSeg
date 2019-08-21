@@ -21,7 +21,7 @@ import click
                     help="Whether to updates the running means and variances during the training.")
 @click.option("--learning-rate", type=float, default=2.5e-4,
                     help="Base learning rate for training with polynomial decay.")
-@click.option("--learning-rate-D", type=float, default=1e-4,
+@click.option("--learning-rate-d", type=float, default=1e-4,
                     help="Base learning rate for discriminator.")
 @click.option("--lambda-adv-pred", type=float, default=0.1,
                     help="lambda_adv for adversarial training.")
@@ -29,13 +29,13 @@ import click
                     help="lambda_semi for adversarial training.")
 @click.option("--lambda-semi-adv", type=float, default=0.001,
                     help="lambda_semi for adversarial training.")
-@click.option("--mask-T", type=float, default=0.2,
+@click.option("--mask-t", type=float, default=0.2,
                     help="mask T for semi adversarial training.")
 @click.option("--semi-start", type=int, default=5000,
                     help="start semi learning after # iterations")
 @click.option("--semi-start-adv", type=int, default=0,
                     help="start semi learning after # iterations")
-@click.option("--D-remain", type=bool, default=True,
+@click.option("--d-remain", type=bool, default=True,
                     help="Whether to train D with unlabeled data")
 @click.option("--momentum", type=float, default=0.9,
                     help="Momentum component of the optimiser.")
@@ -53,7 +53,7 @@ import click
                     help="Random seed to have reproducible results.")
 @click.option("--restore-from", type=str, default='http://vllab1.ucmerced.edu/~whung/adv-semi-seg/resnet101COCO-41f33a49.pth',
                     help="Where restore model parameters from.")
-@click.option("--restore-from-D", type=str, default=None,
+@click.option("--restore-from-d", type=str, default=None,
                     help="Where restore model parameters from.")
 @click.option("--eval-every", type=int, default=1000,
                     help="Evaluate every n iters.")
@@ -67,7 +67,7 @@ import click
                     help="choose gpu device.")
 def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_id, ignore_label,
           input_size, is_training, learning_rate, learning_rate_d, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
-          d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_D,
+          d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_d,
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
     import cv2
     import torch
@@ -196,8 +196,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
     # init D
     model_D = FCDiscriminator(num_classes=ds.num_classes)
-    if restore_from_D is not None:
-        model_D.load_state_dict(torch.load(restore_from_D))
+    if restore_from_d is not None:
+        model_D.load_state_dict(torch.load(restore_from_d))
     model_D.train()
     model_D = model_D.to(torch_device)
 
