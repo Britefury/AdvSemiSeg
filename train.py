@@ -66,8 +66,8 @@ import click
 @click.option("--device", type=str, default='cuda:0',
                     help="choose gpu device.")
 def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_id, ignore_label,
-          input_size, is_training, learning_rate, learning_rate_D, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
-          D_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_D,
+          input_size, is_training, learning_rate, learning_rate_d, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
+          d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_D,
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
     import cv2
     import torch
@@ -137,7 +137,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             optimizer.param_groups[1]['lr'] = lr * 10
     
     def adjust_learning_rate_D(optimizer, i_iter):
-        lr = lr_poly(learning_rate_D, i_iter, num_steps, power)
+        lr = lr_poly(learning_rate_d, i_iter, num_steps, power)
         optimizer.param_groups[0]['lr'] = lr
         if len(optimizer.param_groups) > 1 :
             optimizer.param_groups[1]['lr'] = lr * 10
@@ -258,7 +258,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     optimizer.zero_grad()
 
     # optimizer for discriminator network
-    optimizer_D = optim.Adam(model_D.parameters(), lr=learning_rate_D, betas=(0.9,0.99))
+    optimizer_D = optim.Adam(model_D.parameters(), lr=learning_rate_d, betas=(0.9, 0.99))
     optimizer_D.zero_grad()
 
     # loss/ bilinear upsampling
@@ -391,7 +391,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             # train with pred
             pred = pred.detach()
 
-            if D_remain:
+            if d_remain:
                 pred = torch.cat((pred, pred_remain), 0)
                 ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
 
