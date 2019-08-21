@@ -434,8 +434,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             with torch.no_grad():
                 evaluator = EvaluatorIoU(ds.num_classes)
                 for index, batch in enumerate(testloader):
-                    if index % 100 == 0:
-                        print('%d processd' % (index))
                     image, label, size, name = batch
                     size = size[0].numpy()
                     image = image.float().to(torch_device)
