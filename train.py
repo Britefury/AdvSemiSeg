@@ -229,7 +229,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             train_ids = list(range(train_dataset_size))
             rng.shuffle(train_ids)
 
-        pickle.dump(train_ids, open(osp.join(snapshot_dir, 'train_id.pkl'), 'wb'))
+        if snapshot_dir is not None:
+            pickle.dump(train_ids, open(osp.join(snapshot_dir, 'train_id.pkl'), 'wb'))
 
         train_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
         train_remain_sampler = data.sampler.SubsetRandomSampler(train_ids[partial_size:])
