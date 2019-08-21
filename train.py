@@ -276,14 +276,13 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     pred_label = 0
     gt_label = 1
 
+    loss_seg_value = 0
+    loss_adv_pred_value = 0
+    loss_D_value = 0
+    loss_semi_value = 0
+    loss_semi_adv_value = 0
 
     for i_iter in range(num_steps):
-
-        loss_seg_value = 0
-        loss_adv_pred_value = 0
-        loss_D_value = 0
-        loss_semi_value = 0
-        loss_semi_adv_value = 0
 
         model.train()
         model.freeze_batchnorm()
@@ -427,9 +426,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         optimizer.step()
         optimizer_D.step()
 
-        print('iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi = {5:.3f}, loss_semi_adv = {6:.3f}'.format(
-            i_iter, num_steps, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_value, loss_semi_adv_value))
-
         if i_iter % eval_every == 0 and i_iter != 0:
             model.eval()
             with torch.no_grad():
@@ -454,10 +450,27 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             per_class_iou = evaluator.score()
             mean_iou = per_class_iou.mean()
 
+            loss_seg_value /= eval_every
+            loss_adv_pred_value /= eval_every
+            loss_D_value /= eval_every
+            loss_semi_value /= eval_every
+            loss_semi_adv_value /= eval_every
+
+            print(
+                'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi = {5:.3f}, loss_semi_adv = {6:.3f}'.format(
+                    i_iter, num_steps, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_value,
+                    loss_semi_adv_value))
+
             for i, (class_name, iou) in enumerate(zip(ds.class_names, per_class_iou)):
                 print('class {:2d} {:12} IU {:.2f}'.format(i, class_name, iou))
 
             print('meanIOU: ' + str(mean_iou) + '\n')
+
+            loss_seg_value = 0
+            loss_adv_pred_value = 0
+            loss_D_value = 0
+            loss_semi_value = 0
+            loss_semi_adv_value = 0
 
         if snapshot_dir is not None and i_iter % save_snapshot_every == 0 and i_iter!=0:
             print('taking snapshot ...')
