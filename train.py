@@ -115,18 +115,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
 
 
-    def loss_calc(pred, label):
-        """
-        This function returns cross entropy loss for semantic segmentation
-        """
-        # out shape batch_size x channels x h x w -> batch_size x channels x h x w
-        # label shape h x w x 1 x batch_size  -> batch_size x 1 x h x w
-        label = label.long().to(torch_device)
-        criterion = CrossEntropy2d()
-    
-        return criterion(pred, label)
-    
-    
     def lr_poly(base_lr, iter, max_iter, power):
         return base_lr*((1-float(iter)/max_iter)**(power))
     
@@ -349,10 +337,11 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
             images, labels, _, _ = batch
             images = images.float().to(torch_device)
+            labels = labels.long().to(torch_device)
             valid_mask = (labels != ignore_label).float()[:, None, :, :]
             pred = model(images)
 
-            loss_seg = loss_calc(pred, labels)
+            loss_seg = F.cross_entropy(pred, labels, ignore_index=ignore_label)
 
             D_out = model_D(F.softmax(pred, dim=1))
 
