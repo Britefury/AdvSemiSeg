@@ -9,7 +9,7 @@ import torchvision
 import cv2
 from torch.utils import data
 from PIL import Image
-from .. import settings
+import settings
 
 
 
