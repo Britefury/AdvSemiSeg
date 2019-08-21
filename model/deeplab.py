@@ -118,6 +118,9 @@ class Classifier_Module(nn.Module):
 
 
 class ResNet(nn.Module):
+    MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype=np.float32)
+    STD = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+
     def __init__(self, block, layers, num_classes):
         self.inplanes = 64
         super(ResNet, self).__init__()
@@ -215,9 +218,12 @@ class ResNet(nn.Module):
             
 
 
-    def optim_parameters(self, args):
-        return [{'params': self.get_1x_lr_params_NOscale(), 'lr': args.learning_rate},
-                {'params': self.get_10x_lr_params(), 'lr': 10*args.learning_rate}] 
+    def optim_parameters(self, learning_rate):
+        return [{'params': self.get_1x_lr_params_NOscale(), 'lr': learning_rate},
+                {'params': self.get_10x_lr_params(), 'lr': 10*learning_rate}]
+
+    def freeze_batchnorm(self):
+        pass
 
 
 def Res_Deeplab(num_classes=21):

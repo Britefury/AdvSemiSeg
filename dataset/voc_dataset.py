@@ -9,30 +9,20 @@ import torchvision
 import cv2
 from torch.utils import data
 from PIL import Image
+from .. import settings
 
 
-class VOCDataSet(data.Dataset):
-    def __init__(self, root, list_path, max_iters=None, crop_size=(321, 321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255):
-        self.root = root
-        self.list_path = list_path
+
+class AbstractAccessor (data.Dataset):
+    def __init__(self, ds, files, crop_size, scale, mirror, mean=(128, 128, 128), std=(1, 1, 1)):
+        super(AbstractAccessor, self).__init__()
+        self.ds = ds
+        self.files = files
         self.crop_h, self.crop_w = crop_size
         self.scale = scale
-        self.ignore_label = ignore_label
+        self.mirror = mirror
         self.mean = mean
-        self.is_mirror = mirror
-        self.img_ids = [i_id.strip() for i_id in open(list_path)]
-        if not max_iters==None:
-	        self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
-        self.files = []
-        # for split in ["train", "trainval", "val"]:
-        for name in self.img_ids:
-            img_file = osp.join(self.root, "JPEGImages/%s.jpg" % name)
-            label_file = osp.join(self.root, "SegmentationClassAug/%s.png" % name)
-            self.files.append({
-                "img": img_file,
-                "label": label_file,
-                "name": name
-            })
+        self.std = std
 
     def __len__(self):
         return len(self.files)
@@ -43,6 +33,8 @@ class VOCDataSet(data.Dataset):
         label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_NEAREST)
         return image, label
 
+
+class AccessorXY (AbstractAccessor):
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
@@ -52,7 +44,7 @@ class VOCDataSet(data.Dataset):
         if self.scale:
             image, label = self.generate_scale_label(image, label)
         image = np.asarray(image, np.float32)
-        image -= self.mean
+        image = (image - self.mean) / self.std
         img_h, img_w = label.shape
         pad_h = max(self.crop_h - img_h, 0)
         pad_w = max(self.crop_w - img_w, 0)
@@ -62,7 +54,7 @@ class VOCDataSet(data.Dataset):
                 value=(0.0, 0.0, 0.0))
             label_pad = cv2.copyMakeBorder(label, 0, pad_h, 0,
                 pad_w, cv2.BORDER_CONSTANT,
-                value=(self.ignore_label,))
+                value=(self.ds.ignore_label,))
         else:
             img_pad, label_pad = image, label
 
@@ -73,7 +65,7 @@ class VOCDataSet(data.Dataset):
         label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
         image = image[:, :, ::-1]  # change to BGR
         image = image.transpose((2, 0, 1))
-        if self.is_mirror:
+        if self.mirror:
             flip = np.random.choice(2) * 2 - 1
             image = image[:, :, ::flip]
             label = label[:, ::flip]
@@ -81,38 +73,7 @@ class VOCDataSet(data.Dataset):
         return image.copy(), label.copy(), np.array(size), name
 
 
-class VOCGTDataSet(data.Dataset):
-    def __init__(self, root, list_path, max_iters=None, crop_size=(321, 321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255):
-        self.root = root
-        self.list_path = list_path
-        self.crop_size = crop_size
-        self.crop_h, self.crop_w = crop_size
-        self.scale = scale
-        self.ignore_label = ignore_label
-        self.mean = mean
-        self.is_mirror = mirror
-        self.img_ids = [i_id.strip() for i_id in open(list_path)]
-        if not max_iters==None:
-            self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
-        self.files = []
-        for name in self.img_ids:
-            img_file = osp.join(self.root, "JPEGImages/%s.jpg" % name)
-            label_file = osp.join(self.root, "SegmentationClassAug/%s.png" % name)
-            self.files.append({
-                "img": img_file,
-                "label": label_file,
-                "name": name
-            })
-
-    def __len__(self):
-        return len(self.files)
-
-    def generate_scale_label(self, image, label):
-        f_scale = 0.5 + random.randint(0, 11) / 10.0
-        image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_LINEAR)
-        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_NEAREST)
-        return image, label
-
+class AccessorY (AbstractAccessor):
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
@@ -135,12 +96,12 @@ class VOCGTDataSet(data.Dataset):
                 break
 
         if attempt == 10 :
-            image = cv2.resize(image, self.crop_size, interpolation = cv2.INTER_LINEAR)
-            label = cv2.resize(label, self.crop_size, interpolation = cv2.INTER_NEAREST)
+            image = cv2.resize(image, (self.crop_w, self.crop_h), interpolation = cv2.INTER_LINEAR)
+            label = cv2.resize(label, (self.crop_w, self.crop_h), interpolation = cv2.INTER_NEAREST)
 
 
         image = np.asarray(image, np.float32)
-        image -= self.mean
+        image = (image - self.mean) / self.std
 
         img_h, img_w = label.shape
         h_off = random.randint(0, img_h - self.crop_h)
@@ -149,48 +110,52 @@ class VOCGTDataSet(data.Dataset):
         label = np.asarray(label[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
         image = image[:, :, ::-1]  # change to BGR
         image = image.transpose((2, 0, 1))
-        if self.is_mirror:
+        if self.mirror:
             flip = np.random.choice(2) * 2 - 1
             image = image[:, :, ::flip]
             label = label[:, ::flip]
 
         return image.copy(), label.copy(), np.array(size), name
 
-class VOCDataTestSet(data.Dataset):
-    def __init__(self, root, list_path, crop_size=(505, 505), mean=(128, 128, 128)):
-        self.root = root
-        self.list_path = list_path
-        self.crop_h, self.crop_w = crop_size
-        self.mean = mean
-        self.img_ids = [i_id.strip() for i_id in open(list_path)]
-        self.files = []
+
+class VOCDataSet(object):
+    def __init__(self, ignore_label=255):
+        self.root = settings.get_config_dir('pascal_voc')
+        self.ignore_label = ignore_label
+        self._train_files = self.file_list(os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'train_aug.txt'))
+        self._val_files = self.file_list(os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'val.txt'))
+        self.num_classes = 21
+
+        self.class_names = ['background',  # always index 0
+                            'aeroplane', 'bicycle', 'bird', 'boat',
+                            'bottle', 'bus', 'car', 'cat', 'chair',
+                            'cow', 'diningtable', 'dog', 'horse',
+                            'motorbike', 'person', 'pottedplant',
+                            'sheep', 'sofa', 'train', 'tvmonitor']
+
+    def file_list(self, list_path):
+        img_ids = [i_id.strip() for i_id in open(list_path)]
+        files = []
         # for split in ["train", "trainval", "val"]:
-        for name in self.img_ids:
+        for name in img_ids:
             img_file = osp.join(self.root, "JPEGImages/%s.jpg" % name)
-            self.files.append({
-                "img": img_file
+            label_file = osp.join(self.root, "SegmentationClassAug/%s.png" % name)
+            files.append({
+                "img": img_file,
+                "label": label_file,
+                "name": name
             })
+        return files
 
-    def __len__(self):
-        return len(self.files)
+    def train_xy(self, crop_size=(321, 321), scale=True, mirror=True, mean=(128, 128, 128), std=(1, 1, 1)):
+        return AccessorXY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
 
-    def __getitem__(self, index):
-        datafiles = self.files[index]
-        image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
-        size = image.shape
-        name = osp.splitext(osp.basename(datafiles["img"]))[0]
-        image = np.asarray(image, np.float32)
-        image -= self.mean
+    def train_y(self, crop_size=(321, 321), scale=True, mirror=True, mean=(128, 128, 128), std=(1, 1, 1)):
+        return AccessorY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
 
-        img_h, img_w, _ = image.shape
-        pad_h = max(self.crop_h - img_h, 0)
-        pad_w = max(self.crop_w - img_w, 0)
-        if pad_h > 0 or pad_w > 0:
-            image = cv2.copyMakeBorder(image, 0, pad_h, 0,
-                pad_w, cv2.BORDER_CONSTANT,
-                value=(0.0, 0.0, 0.0))
-        image = image.transpose((2, 0, 1))
-        return image, name, size
+    def val_xy(self, crop_size=(321, 321), scale=False, mirror=False, mean=(128, 128, 128), std=(1, 1, 1)):
+        return AccessorXY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
+
 
 
 if __name__ == '__main__':
