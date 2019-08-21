@@ -119,7 +119,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         """
         # out shape batch_size x channels x h x w -> batch_size x channels x h x w
         # label shape h x w x 1 x batch_size  -> batch_size x 1 x h x w
-        label = torch.tensor(label, dtype=torch.long, device=torch_device)
+        label = label.long().to(torch_device)
         criterion = CrossEntropy2d()
     
         return criterion(pred, label)
@@ -305,7 +305,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
                 # only access to img
                 images, _, _, _ = batch
-                images = torch.tensor(images, dtype=torch.float, device=torch_device)
+                images = images.float().to(torch_device)
 
 
                 pred = model(images)
@@ -320,7 +320,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 loss_semi_adv = loss_semi_adv/iter_size
 
                 #loss_semi_adv.backward()
-                loss_semi_adv_value += loss_semi_adv.data.cpu().numpy()[0]/lambda_semi_adv
+                loss_semi_adv_value += float(loss_semi_adv)/lambda_semi_adv
 
                 if lambda_semi <= 0 or i_iter < semi_start:
                     loss_semi_adv.backward()
@@ -342,7 +342,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
                         loss_semi = lambda_semi * loss_calc(pred, semi_gt)
                         loss_semi = loss_semi/iter_size
-                        loss_semi_value += loss_semi.data.cpu().numpy()[0]/lambda_semi
+                        loss_semi_value += float(loss_semi)/lambda_semi
                         loss_semi += loss_semi_adv
                         loss_semi.backward()
 
@@ -359,7 +359,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 _, batch = next(trainloader_iter)
 
             images, labels, _, _ = batch
-            images = torch.tensor(images, dtype=torch.float, device=torch_device)
+            images = images.float().to(torch_device)
             ignore_mask = (labels.numpy() == ignore_label)
             pred = model(images)
 
@@ -374,8 +374,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             # proper normalization
             loss = loss/iter_size
             loss.backward()
-            loss_seg_value += loss_seg.data.cpu().numpy()[0]/iter_size
-            loss_adv_pred_value += loss_adv_pred.data.cpu().numpy()[0]/iter_size
+            loss_seg_value += float(loss_seg)/iter_size
+            loss_adv_pred_value += float(loss_adv_pred)/iter_size
 
 
             # train D
@@ -395,7 +395,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             loss_D = bce_loss(D_out, make_D_label(pred_label, ignore_mask))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
-            loss_D_value += loss_D.data.cpu().numpy()[0]
+            loss_D_value += float(loss_D)
 
 
             # train with gt
@@ -414,7 +414,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             loss_D = bce_loss(D_out, make_D_label(gt_label, ignore_mask_gt))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
-            loss_D_value += loss_D.data.cpu().numpy()[0]
+            loss_D_value += float(loss_D)
 
 
 
@@ -433,7 +433,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                         print('%d processd' % (index))
                     image, label, size, name = batch
                     size = size[0].numpy()
-                    image = torch.tensor(image, dtype=torch.float, device=torch_device)
+                    image = image.float().to(torch_device)
                     output = model(image)
                     output = output.cpu().data[0].numpy()
 
