@@ -226,7 +226,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             print('loading train ids from {}'.format(partial_id))
         else:
             rng = np.random.RandomState(random_seed)
-            train_ids = range(train_dataset_size)
+            train_ids = list(range(train_dataset_size))
             rng.shuffle(train_ids)
 
         pickle.dump(train_ids, open(osp.join(snapshot_dir, 'train_id.pkl'), 'wb'))
