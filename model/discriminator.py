@@ -19,6 +19,7 @@ class FCDiscriminator(nn.Module):
 
 
 	def forward(self, x):
+		in_shape = x.shape
 		x = self.conv1(x)
 		x = self.leaky_relu(x)
 		x = self.conv2(x)
@@ -30,5 +31,7 @@ class FCDiscriminator(nn.Module):
 		x = self.classifier(x)
 		#x = self.up_sample(x)
 		#x = self.sigmoid(x) 
+
+		x = F.upsample(x, size=in_shape[2:4], mode='bilinear', align_corners=True)
 
 		return x

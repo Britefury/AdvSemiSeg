@@ -23,7 +23,6 @@ def evaluate(arch, dataset, ignore_label, restore_from, pretrained_model, save_d
     import sys
     from collections import OrderedDict
     import os
-    from packaging import version
 
     import torch
     import torch.nn as nn
@@ -174,10 +173,6 @@ def evaluate(arch, dataset, ignore_label, restore_from, pretrained_model, save_d
 
     testloader = data.DataLoader(ds_val_xy, batch_size=1, shuffle=False, pin_memory=True)
 
-    if version.parse(torch.__version__) >= version.parse('0.4.0'):
-        interp = nn.Upsample(size=(505, 505), mode='bilinear', align_corners=True)
-    else:
-        interp = nn.Upsample(size=(505, 505), mode='bilinear')
     data_list = []
 
     colorize = VOCColorize()
@@ -190,7 +185,7 @@ def evaluate(arch, dataset, ignore_label, restore_from, pretrained_model, save_d
             size = size[0].numpy()
             image = torch.tensor(image, dtype=torch.float, device=torch_device)
             output = model(image)
-            output = interp(output).cpu().data[0].numpy()
+            output = output.cpu().data[0].numpy()
 
             output = output[:,:size[0],:size[1]]
             gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)

@@ -84,8 +84,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     import os
     import os.path as osp
     import pickle
-    from packaging import version
-    
+
     from model.deeplab import Res_Deeplab
     from model.unet import unet_resnet50
     from model.discriminator import FCDiscriminator
@@ -264,11 +263,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     # loss/ bilinear upsampling
     bce_loss = BCEWithLogitsLoss2d()
 
-    if version.parse(torch.__version__) >= version.parse('0.4.0'):
-        interp = nn.Upsample(size=(input_size[1], input_size[0]), mode='bilinear', align_corners=True)
-    else:
-        interp = nn.Upsample(size=(input_size[1], input_size[0]), mode='bilinear')
-
 
     # labels for adversarial training
     pred_label = 0
@@ -312,10 +306,10 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 images = torch.tensor(images, dtype=torch.float, device=torch_device)
 
 
-                pred = interp(model(images))
+                pred = model(images)
                 pred_remain = pred.detach()
 
-                D_out = interp(model_D(F.softmax(pred)))
+                D_out = model_D(F.softmax(pred))
                 D_out_sigmoid = F.sigmoid(D_out).data.cpu().numpy().squeeze(axis=1)
 
                 ignore_mask_remain = np.zeros(D_out_sigmoid.shape).astype(np.bool)
@@ -365,11 +359,11 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             images, labels, _, _ = batch
             images = torch.tensor(images, dtype=torch.float, device=torch_device)
             ignore_mask = (labels.numpy() == ignore_label)
-            pred = interp(model(images))
+            pred = model(images)
 
             loss_seg = loss_calc(pred, labels)
 
-            D_out = interp(model_D(F.softmax(pred)))
+            D_out = model_D(F.softmax(pred))
 
             loss_adv_pred = bce_loss(D_out, make_D_label(gt_label, ignore_mask))
 
@@ -395,7 +389,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 pred = torch.cat((pred, pred_remain), 0)
                 ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
 
-            D_out = interp(model_D(F.softmax(pred)))
+            D_out = model_D(F.softmax(pred))
             loss_D = bce_loss(D_out, make_D_label(pred_label, ignore_mask))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
@@ -414,7 +408,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             D_gt_v = torch.tensor(one_hot(labels_gt), dtype=torch.float, device=torch_device)
             ignore_mask_gt = (labels_gt.numpy() == ignore_label)
 
-            D_out = interp(model_D(D_gt_v))
+            D_out = model_D(D_gt_v)
             loss_D = bce_loss(D_out, make_D_label(gt_label, ignore_mask_gt))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
@@ -439,7 +433,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                     size = size[0].numpy()
                     image = torch.tensor(image, dtype=torch.float, device=torch_device)
                     output = model(image)
-                    output = interp(output).cpu().data[0].numpy()
+                    output = output.cpu().data[0].numpy()
 
                     output = output[:, :size[0], :size[1]]
                     gt = np.asarray(label[0].numpy()[:size[0], :size[1]], dtype=np.int)

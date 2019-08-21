@@ -1,4 +1,4 @@
-import torch.nn as nn
+import torch.nn as nn, torch.nn.functional as F
 import math
 import torch.utils.model_zoo as model_zoo
 import torch
@@ -167,6 +167,7 @@ class ResNet(nn.Module):
         return block(dilation_series,padding_series,num_classes)
 
     def forward(self, x):
+        in_shape = x.shape
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -176,6 +177,8 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         x = self.layer5(x)
+
+        x = F.upsample(x, size=in_shape[2:4], mode='bilinear', align_corners=True)
 
         return x
 
