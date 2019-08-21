@@ -133,7 +133,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     
     def one_hot(label):
         x = torch.zeros(label.shape[0], ds.num_classes, label.shape[1], label.shape[2], dtype=torch.float, device=torch_device)
-        x.scatter_(1, label, 1)
+        x.scatter_(1, label[:, None, :, :], 1)
         return x
 
     
