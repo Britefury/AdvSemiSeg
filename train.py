@@ -73,7 +73,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
     import cv2
     import torch
-    import torch.nn as nn
+    import torch.nn as nn, torch.nn.functional as F
     from torch.utils import data, model_zoo
     import numpy as np
     import pickle
@@ -144,21 +144,10 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             optimizer.param_groups[1]['lr'] = lr * 10
     
     def one_hot(label):
-        label = label.numpy()
-        one_hot = np.zeros((label.shape[0], ds.num_classes, label.shape[1], label.shape[2]), dtype=label.dtype)
-        for i in range(ds.num_classes):
-            one_hot[:,i,...] = (label==i)
-        #handle ignore labels
-        return torch.tensor(one_hot, dtype=torch.float, device=torch_device)
-    
-    def make_D_label(label, ignore_mask):
-        ignore_mask = np.expand_dims(ignore_mask, axis=1)
-        D_label = np.ones(ignore_mask.shape)*label
-        D_label[ignore_mask] = ignore_label
-        D_label = torch.tensor(D_label, dtype=torch.float, device=torch_device)
-    
-        return D_label
-    
+        x = torch.zeros((label.shape[0], ds.num_classes, label.shape[1], label.shape[2]), dtype=label.float, device=torch_device)
+        x.scatter_(1, label, 1)
+        return x
+
     
     h, w = map(int, eval_crop_size.split(','))
     eval_crop_size = (h, w)
@@ -268,19 +257,13 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     optimizer_D = optim.Adam(model_D.parameters(), lr=learning_rate_d, betas=(0.9, 0.99))
     optimizer_D.zero_grad()
 
-    # loss/ bilinear upsampling
-    bce_loss = BCEWithLogitsLoss2d()
 
-
-    # labels for adversarial training
-    fake_d_label = 0
-    real_d_label = 1
-
-    loss_seg_value = 0
-    loss_adv_pred_value = 0
-    loss_D_value = 0
-    loss_semi_value = 0
-    loss_semi_adv_value = 0
+    loss_seg_value = 0.0
+    loss_adv_pred_value = 0.0
+    loss_D_value = 0.0
+    loss_semi_value = 0.0
+    loss_semi_adv_value = 0.0
+    semi_ratio_accum = 0.0
 
     for i_iter in range(num_steps):
 
@@ -317,12 +300,13 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 pred_remain = pred.detach()
 
                 D_out = model_D(F.softmax(pred, dim=1))
-                D_out_sigmoid = F.sigmoid(D_out).data.cpu().numpy().squeeze(axis=1)
+                D_out_sigmoid = F.sigmoid(D_out)
 
-                ignore_mask_remain = np.zeros(D_out_sigmoid.shape).astype(np.bool)
+                valid_mask_remain = torch.ones_like(D_out_sigmoid)
 
                 # D target is real (1)
-                loss_semi_adv = lambda_semi_adv * bce_loss(D_out, torch.ones(D_out.shape, dtype=torch.float, device=torch_device))
+
+                loss_semi_adv = lambda_semi_adv * F.binary_cross_entropy_with_logits(D_out, torch.ones_like(D_out))
                 loss_semi_adv = loss_semi_adv/iter_size
 
                 #loss_semi_adv.backward()
@@ -333,20 +317,19 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                     loss_semi_value = 0
                 else:
                     # produce ignore mask
-                    semi_ignore_mask = (D_out_sigmoid < mask_t)
+                    semi_confidence_mask = (D_out_sigmoid.squeeze(dim=1) >= mask_t).float()
 
-                    semi_gt = pred.data.cpu().numpy().argmax(axis=1)
-                    semi_gt[semi_ignore_mask] = ignore_label
+                    semi_gt = torch.argmax(pred, dim=1)
 
-                    semi_ratio = 1.0 - float(semi_ignore_mask.sum())/semi_ignore_mask.size
-                    print('semi ratio: {:.4f}'.format(semi_ratio))
+                    semi_ratio = float(semi_confidence_mask.mean())
+                    semi_ratio_accum += semi_ratio
 
                     if semi_ratio == 0.0:
                         loss_semi_value += 0
                     else:
-                        semi_gt = torch.FloatTensor(semi_gt)
 
-                        loss_semi = lambda_semi * loss_calc(pred, semi_gt)
+                        loss_semi = (F.cross_entropy(pred, semi_gt, reduce=False) * semi_confidence_mask).sum()
+                        loss_semi = lambda_semi * loss_semi / semi_confidence_mask.sum()
                         loss_semi = loss_semi/iter_size
                         loss_semi_value += float(loss_semi)/lambda_semi
                         loss_semi += loss_semi_adv
@@ -366,14 +349,14 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
             images, labels, _, _ = batch
             images = images.float().to(torch_device)
-            ignore_mask = (labels.numpy() == ignore_label)
+            valid_mask = (labels != ignore_label).float()[:, None, :, :]
             pred = model(images)
 
             loss_seg = loss_calc(pred, labels)
 
             D_out = model_D(F.softmax(pred, dim=1))
 
-            loss_adv_pred = bce_loss(D_out, make_D_label(real_d_label, ignore_mask))
+            loss_adv_pred = F.binary_cross_entropy_with_logits(D_out, torch.ones_like(D_out), weight=valid_mask)
 
             loss = loss_seg + lambda_adv_pred * loss_adv_pred
 
@@ -395,10 +378,10 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
             if d_remain:
                 pred = torch.cat((pred, pred_remain), 0)
-                ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
+                valid_mask = torch.cat([valid_mask, valid_mask_remain], dim=0)
 
             D_out = model_D(F.softmax(pred, dim=1))
-            loss_D = bce_loss(D_out, make_D_label(fake_d_label, ignore_mask))
+            loss_D = F.binary_cross_entropy_with_logits(D_out, torch.zeros_like(D_out), weight=valid_mask)
             loss_D = loss_D/iter_size/2
             loss_D.backward()
             loss_D_value += float(loss_D)
@@ -414,10 +397,10 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
             _, labels_gt, _, _ = batch
             D_gt_v = one_hot(labels_gt)
-            ignore_mask_gt = (labels_gt.numpy() == ignore_label)
+            valid_mask_gt = (labels_gt != ignore_label).float()[:, None, :, :]
 
             D_out = model_D(D_gt_v)
-            loss_D = bce_loss(D_out, make_D_label(real_d_label, ignore_mask_gt))
+            loss_D = F.binary_cross_entropy_with_logits(D_out, torch.ones_like(D_out), weight=valid_mask_gt)
             loss_D = loss_D/iter_size/2
             loss_D.backward()
             loss_D_value += float(loss_D)
@@ -426,6 +409,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
         optimizer.step()
         optimizer_D.step()
+
+        sys.stdout.write('.')
 
         if i_iter % eval_every == 0 and i_iter != 0:
             model.eval()
@@ -446,6 +431,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
                     evaluator.sample(gt, output, ignore_value=ignore_label)
 
+                    sys.stdout.write('+')
+
             per_class_iou = evaluator.score()
             mean_iou = per_class_iou.mean()
 
@@ -455,21 +442,24 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             loss_semi_value /= eval_every
             loss_semi_adv_value /= eval_every
 
+            sys.stdout.write('\n')
+
             print(
-                'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi = {5:.3f}, loss_semi_adv = {6:.3f}'.format(
+                'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi = {5:.3f}, loss_semi_adv = {6:.3f}, semi ratio={7:.3%}'.format(
                     i_iter, num_steps, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_value,
-                    loss_semi_adv_value))
+                    loss_semi_adv_value, semi_ratio_accum))
 
             for i, (class_name, iou) in enumerate(zip(ds.class_names, per_class_iou)):
                 print('class {:2d} {:12} IU {:.2f}'.format(i, class_name, iou))
 
             print('meanIOU: ' + str(mean_iou) + '\n')
 
-            loss_seg_value = 0
-            loss_adv_pred_value = 0
-            loss_D_value = 0
-            loss_semi_value = 0
-            loss_semi_adv_value = 0
+            loss_seg_value = 0.0
+            loss_adv_pred_value = 0.0
+            loss_D_value = 0.0
+            loss_semi_value = 0.0
+            loss_semi_adv_value = 0.0
+            semi_ratio_accum = 0.0
 
         if snapshot_dir is not None and i_iter % save_snapshot_every == 0 and i_iter!=0:
             print('taking snapshot ...')
