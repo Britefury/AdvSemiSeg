@@ -17,7 +17,7 @@ import click
                     help="The index of the label to ignore during the training.")
 @click.option("--input-size", type=str, default='321,321',
                     help="Comma-separated string with height and width of images.")
-@click.option("--is-training", action="store_true",
+@click.option("--is-training", is_flag=True, default=False,
                     help="Whether to updates the running means and variances during the training.")
 @click.option("--learning-rate", type=float, default=2.5e-4,
                     help="Base learning rate for training with polynomial decay.")
@@ -39,15 +39,15 @@ import click
                     help="Whether to train D with unlabeled data")
 @click.option("--momentum", type=float, default=0.9,
                     help="Momentum component of the optimiser.")
-@click.option("--not-restore-last", action="store_true",
+@click.option("--not-restore-last", is_flag=True, default=False,
                     help="Whether to not restore last (FC) layers.")
 @click.option("--num-steps", type=int, default=20000,
                     help="Number of training steps.")
 @click.option("--power", type=float, default=0.9,
                     help="Decay parameter to compute the learning rate.")
-@click.option("--random-mirror", action="store_true",
+@click.option("--random-mirror", is_flag=True, default=False,
                     help="Whether to randomly mirror the inputs during the training.")
-@click.option("--random-scale", action="store_true",
+@click.option("--random-scale", is_flag=True, default=False,
                     help="Whether to randomly scale the inputs during the training.")
 @click.option("--random-seed", type=int, default=1234,
                     help="Random seed to have reproducible results.")
