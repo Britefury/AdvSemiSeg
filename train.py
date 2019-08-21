@@ -15,7 +15,9 @@ import click
                     help="restore partial id list")
 @click.option("--ignore-label", type=int, default=255,
                     help="The index of the label to ignore during the training.")
-@click.option("--input-size", type=str, default='321,321',
+@click.option("--crop-size", type=str, default='321,321',
+                    help="Comma-separated string with height and width of images.")
+@click.option("--eval-crop-size", type=str, default='505,505',
                     help="Comma-separated string with height and width of images.")
 @click.option("--is-training", is_flag=True, default=False,
                     help="Whether to updates the running means and variances during the training.")
@@ -66,7 +68,7 @@ import click
 @click.option("--device", type=str, default='cuda:0',
                     help="choose gpu device.")
 def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_id, ignore_label,
-          input_size, is_training, learning_rate, learning_rate_d, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
+          crop_size, eval_crop_size, is_training, learning_rate, learning_rate_d, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
           d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_d,
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
     import cv2
@@ -158,8 +160,11 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         return D_label
     
     
-    h, w = map(int, input_size.split(','))
-    input_size = (h, w)
+    h, w = map(int, eval_crop_size.split(','))
+    eval_crop_size = (h, w)
+
+    h, w = map(int, crop_size.split(','))
+    crop_size = (h, w)
 
     cudnn.enabled = True
 
@@ -206,8 +211,9 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             os.makedirs(snapshot_dir)
 
 
-    ds_train_xy = ds.train_xy(crop_size=input_size, scale=random_scale, mirror=random_mirror, mean=model.MEAN, std=model.STD)
-    ds_train_y = ds.train_y(crop_size=input_size, scale=random_scale, mirror=random_mirror, mean=model.MEAN, std=model.STD)
+    ds_train_xy = ds.train_xy(crop_size=crop_size, scale=random_scale, mirror=random_mirror, mean=model.MEAN, std=model.STD)
+    ds_train_y = ds.train_y(crop_size=crop_size, scale=random_scale, mirror=random_mirror, mean=model.MEAN, std=model.STD)
+    ds_val_xy = ds.val_xy(crop_size=eval_crop_size, scale=False, mirror=False, mean=model.MEAN, std=model.STD)
 
     train_dataset_size = len(ds_train_xy)
 
@@ -245,7 +251,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
         trainloader_remain_iter = enumerate(trainloader_remain)
 
-    testloader = data.DataLoader(ds.val_xy, batch_size=1, shuffle=False, pin_memory=True)
+    testloader = data.DataLoader(ds_val_xy, batch_size=1, shuffle=False, pin_memory=True)
 
     trainloader_iter = enumerate(trainloader)
     trainloader_gt_iter = enumerate(trainloader_gt)
@@ -311,7 +317,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 pred = model(images)
                 pred_remain = pred.detach()
 
-                D_out = model_D(F.softmax(pred))
+                D_out = model_D(F.softmax(pred, dim=1))
                 D_out_sigmoid = F.sigmoid(D_out).data.cpu().numpy().squeeze(axis=1)
 
                 ignore_mask_remain = np.zeros(D_out_sigmoid.shape).astype(np.bool)
@@ -365,7 +371,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
             loss_seg = loss_calc(pred, labels)
 
-            D_out = model_D(F.softmax(pred))
+            D_out = model_D(F.softmax(pred, dim=1))
 
             loss_adv_pred = bce_loss(D_out, make_D_label(gt_label, ignore_mask))
 
@@ -391,7 +397,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 pred = torch.cat((pred, pred_remain), 0)
                 ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
 
-            D_out = model_D(F.softmax(pred))
+            D_out = model_D(F.softmax(pred, dim=1))
             loss_D = bce_loss(D_out, make_D_label(pred_label, ignore_mask))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
