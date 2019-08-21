@@ -81,7 +81,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     import torch.optim as optim
     import torch.nn.functional as F
     import scipy.misc
-    import torch.backends.cudnn as cudnn
     import sys
     import os
     import os.path as osp
@@ -143,8 +142,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     h, w = map(int, crop_size.split(','))
     crop_size = (h, w)
 
-    cudnn.enabled = True
-
     # create network
     if arch == 'deeplab2':
         model = Res_Deeplab(num_classes=ds.num_classes)
@@ -172,8 +169,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
     model.train()
     model = model.to(torch_device)
-
-    cudnn.benchmark = True
 
     # init D
     model_D = FCDiscriminator(num_classes=ds.num_classes)
@@ -385,7 +380,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 _, batch = next(trainloader_gt_iter)
 
             _, labels_gt, _, _ = batch
-            D_gt_v = one_hot(labels_gt.long().to(torch_device))
+            labels_gt = labels_gt.long().to(torch_device)
+            D_gt_v = one_hot(labels_gt)
             valid_mask_gt = (labels_gt != ignore_label).float()[:, None, :, :]
 
             D_out = model_D(D_gt_v)
