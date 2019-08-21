@@ -201,8 +201,9 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
     model_D = model_D.to(torch_device)
 
 
-    if not os.path.exists(snapshot_dir):
-        os.makedirs(snapshot_dir)
+    if snapshot_dir is not None:
+        if not os.path.exists(snapshot_dir):
+            os.makedirs(snapshot_dir)
 
 
     ds_train_xy = ds.train_xy(crop_size=input_size, scale=random_scale, mirror=random_mirror, mean=model.MEAN, std=model.STD)
