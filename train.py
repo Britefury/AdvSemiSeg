@@ -149,7 +149,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         for i in range(ds.num_classes):
             one_hot[:,i,...] = (label==i)
         #handle ignore labels
-        return torch.FloatTensor(one_hot)
+        return torch.tensor(one_hot, dtype=torch.float, device=torch_device)
     
     def make_D_label(label, ignore_mask):
         ignore_mask = np.expand_dims(ignore_mask, axis=1)
@@ -412,7 +412,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 _, batch = next(trainloader_gt_iter)
 
             _, labels_gt, _, _ = batch
-            D_gt_v = torch.tensor(one_hot(labels_gt), dtype=torch.float, device=torch_device)
+            D_gt_v = one_hot(labels_gt)
             ignore_mask_gt = (labels_gt.numpy() == ignore_label)
 
             D_out = model_D(D_gt_v)

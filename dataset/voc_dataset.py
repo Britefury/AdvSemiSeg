@@ -154,7 +154,7 @@ class VOCDataSet(object):
         return AccessorY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
 
     def val_xy(self, crop_size=(321, 321), scale=False, mirror=False, mean=(128, 128, 128), std=(1, 1, 1)):
-        return AccessorXY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
+        return AccessorXY(self, self._val_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
 
 
 
