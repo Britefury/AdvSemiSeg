@@ -273,8 +273,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
 
     # labels for adversarial training
-    pred_label = 0
-    gt_label = 1
+    fake_d_label = 0
+    real_d_label = 1
 
     loss_seg_value = 0
     loss_adv_pred_value = 0
@@ -321,7 +321,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
                 ignore_mask_remain = np.zeros(D_out_sigmoid.shape).astype(np.bool)
 
-                loss_semi_adv = lambda_semi_adv * bce_loss(D_out, make_D_label(gt_label, ignore_mask_remain))
+                # D target is real (1)
+                loss_semi_adv = lambda_semi_adv * bce_loss(D_out, torch.ones(D_out.shape, dtype=torch.float, device=torch_device))
                 loss_semi_adv = loss_semi_adv/iter_size
 
                 #loss_semi_adv.backward()
@@ -372,7 +373,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
             D_out = model_D(F.softmax(pred, dim=1))
 
-            loss_adv_pred = bce_loss(D_out, make_D_label(gt_label, ignore_mask))
+            loss_adv_pred = bce_loss(D_out, make_D_label(real_d_label, ignore_mask))
 
             loss = loss_seg + lambda_adv_pred * loss_adv_pred
 
@@ -397,7 +398,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                 ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
 
             D_out = model_D(F.softmax(pred, dim=1))
-            loss_D = bce_loss(D_out, make_D_label(pred_label, ignore_mask))
+            loss_D = bce_loss(D_out, make_D_label(fake_d_label, ignore_mask))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
             loss_D_value += float(loss_D)
@@ -416,7 +417,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             ignore_mask_gt = (labels_gt.numpy() == ignore_label)
 
             D_out = model_D(D_gt_v)
-            loss_D = bce_loss(D_out, make_D_label(gt_label, ignore_mask_gt))
+            loss_D = bce_loss(D_out, make_D_label(real_d_label, ignore_mask_gt))
             loss_D = loss_D/iter_size/2
             loss_D.backward()
             loss_D_value += float(loss_D)
@@ -431,8 +432,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
             with torch.no_grad():
                 evaluator = EvaluatorIoU(ds.num_classes)
                 for index, batch in enumerate(testloader):
-                    if index % 100 == 0:
-                        print('%d processd' % (index))
                     image, label, size, name = batch
                     size = size[0].numpy()
                     image = image.float().to(torch_device)
