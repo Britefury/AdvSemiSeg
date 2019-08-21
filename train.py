@@ -338,7 +338,6 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                     semi_gt[semi_ignore_mask] = ignore_label
 
                     semi_ratio = 1.0 - float(semi_ignore_mask.sum())/semi_ignore_mask.size
-                    print('semi ratio: {:.4f}'.format(semi_ratio))
 
                     if semi_ratio == 0.0:
                         loss_semi_value += 0
