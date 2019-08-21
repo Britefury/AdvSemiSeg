@@ -66,7 +66,7 @@ import click
 @click.option("--device", type=str, default='cuda:0',
                     help="choose gpu device.")
 def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_id, ignore_label,
-          input_size, is_training, learning_rate, learning_rate_D, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_T, semi_start, semi_start_adv,
+          input_size, is_training, learning_rate, learning_rate_D, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
           D_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_D,
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
     import cv2
@@ -331,7 +331,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
                     loss_semi_value = 0
                 else:
                     # produce ignore mask
-                    semi_ignore_mask = (D_out_sigmoid < mask_T)
+                    semi_ignore_mask = (D_out_sigmoid < mask_t)
 
                     semi_gt = pred.data.cpu().numpy().argmax(axis=1)
                     semi_gt[semi_ignore_mask] = ignore_label
