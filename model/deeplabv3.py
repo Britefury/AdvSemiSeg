@@ -1,3 +1,4 @@
+import numpy as np
 from .unet import _set_bn_to_eval
 import torch.nn as nn
 from torch.utils import model_zoo
@@ -8,7 +9,6 @@ except ImportError:
 
 
 class DeepLabv3ResNet101Wrapper (nn.Module):
-    BLOCK_SIZE = (1, 1)
     MEAN = np.array([0.485, 0.456, 0.406])
     STD = np.array([0.229, 0.224, 0.225])
 
