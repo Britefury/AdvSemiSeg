@@ -72,6 +72,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
           crop_size, eval_crop_size, is_training, learning_rate, learning_rate_d, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
           d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_d,
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
+    settings = locals().copy()
+
     import cv2
     import torch
     import torch.nn as nn
@@ -112,6 +114,11 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
         else:
             print('Dataset {} not yet supported'.format(dataset))
             return
+
+
+        print('Command: {}'.format(sys.argv[0]))
+        print('Arguments: {}'.format(' '.join(sys.argv[1:])))
+        print('Settings: {}'.format(', '.join(['{}={}'.format(k, settings[k]) for k in sorted(list(settings.keys()))])))
 
 
         print('Loaded data')
@@ -244,6 +251,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
             print('|train supervised|={}'.format(partial_size))
             print('|train unsupervised|={}'.format(train_dataset_size - partial_size))
             print('|val|={}'.format(len(ds_val_xy)))
+
+            print('supervised={}'.format(list(train_ids[:partial_size])))
 
             train_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
             train_remain_sampler = data.sampler.SubsetRandomSampler(train_ids[partial_size:])
