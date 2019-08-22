@@ -41,6 +41,9 @@ class DeepLabv3ResNet101Wrapper (nn.Module):
     def new_parameters(self):
         return self.deeplab.classifier[-1].parameters()
 
+    def optim_parameters(self, learning_rate):
+        return [{'params': self.pretrained_parameters(), 'lr': learning_rate},
+                {'params': self.new_parameters(), 'lr': 10*learning_rate}]
 
 
 def resnet101_deeplabv3(num_classes=21, pretrained=True, decoder_width=1):
