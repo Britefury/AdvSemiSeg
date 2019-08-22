@@ -1,7 +1,7 @@
 import click
 
 @click.command()
-@click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
+@click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
 @click.option("--dataset", type=click.Choice(['pascal_aug']), default='pascal_aug', help="available options : pascal_aug")
 @click.option("--batch-size", type=int, default=10,
                     help="Number of images sent to the network in one step.")
@@ -89,6 +89,7 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
 
     from model.deeplab import Res_Deeplab
     from model.unet import unet_resnet50
+    from model.deeplabv3 import resnet101_deeplabv3
     from model.discriminator import FCDiscriminator
     from utils.loss import CrossEntropy2d, BCEWithLogitsLoss2d
     from utils.evaluation import EvaluatorIoU
@@ -173,6 +174,8 @@ def train(arch, dataset, batch_size, iter_size, num_workers, partial_data, parti
         model = Res_Deeplab(num_classes=ds.num_classes)
     elif arch == 'unet_resnet50':
         model = unet_resnet50(num_classes=ds.num_classes)
+    elif arch == 'resnet101_deeplabv3':
+        model = resnet101_deeplabv3(num_classes=ds.num_classes)
     else:
         print('Architecture {} not supported'.format(arch))
         return

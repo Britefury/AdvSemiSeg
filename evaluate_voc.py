@@ -33,6 +33,7 @@ def evaluate(arch, dataset, ignore_label, restore_from, pretrained_model, save_d
 
     from model.deeplab import Res_Deeplab
     from model.unet import unet_resnet50
+    from model.deeplabv3 import resnet101_deeplabv3
     from dataset.voc_dataset import VOCDataSet
 
     from PIL import Image
@@ -152,6 +153,8 @@ def evaluate(arch, dataset, ignore_label, restore_from, pretrained_model, save_d
         model = Res_Deeplab(num_classes=ds.num_classes)
     elif arch == 'unet_resnet50':
         model = unet_resnet50(num_classes=ds.num_classes)
+    elif arch == 'resnet101_deeplabv3':
+        model = resnet101_deeplabv3(num_classes=ds.num_classes)
     else:
         print('Architecture {} not supported'.format(arch))
         return
