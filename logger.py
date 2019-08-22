@@ -1,11 +1,18 @@
 import sys
+import os
 
 class LogStream (object):
     def __init__(self, path, stream):
         self.path = path
         self.stream = stream
+        self.dir_okay = False
 
     def write(self, x):
+        if not self.dir_okay:
+            dirname = os.path.dirname(self.path)
+            if dirname != '':
+                os.makedirs(dirname, exist_ok=True)
+                self.dir_okay = True
         with open(self.path, 'a+') as f_out:
             f_out.write(x)
         self.stream.write(x)
