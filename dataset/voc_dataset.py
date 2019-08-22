@@ -14,13 +14,14 @@ import settings
 
 
 class AbstractAccessor (data.Dataset):
-    def __init__(self, ds, files, crop_size, scale, mirror, mean=(128, 128, 128), std=(1, 1, 1)):
+    def __init__(self, ds, files, crop_size, scale, mirror, range01=False, mean=(128, 128, 128), std=(1, 1, 1)):
         super(AbstractAccessor, self).__init__()
         self.ds = ds
         self.files = files
         self.crop_h, self.crop_w = crop_size
         self.scale = scale
         self.mirror = mirror
+        self.range01 = range01
         self.mean = mean
         self.std = std
 
@@ -43,7 +44,10 @@ class AccessorXY (AbstractAccessor):
         name = datafiles["name"]
         if self.scale:
             image, label = self.generate_scale_label(image, label)
-        image = np.asarray(image, np.float32)
+        if self.range01:
+            image = (image.astype(np.float32) / 255.0).astype(np.float32)
+        else:
+            image = image.astype(np.float32)
         image = (image - self.mean) / self.std
         img_h, img_w = label.shape
         pad_h = max(self.crop_h - img_h, 0)
@@ -99,8 +103,10 @@ class AccessorY (AbstractAccessor):
             image = cv2.resize(image, (self.crop_w, self.crop_h), interpolation = cv2.INTER_LINEAR)
             label = cv2.resize(label, (self.crop_w, self.crop_h), interpolation = cv2.INTER_NEAREST)
 
-
-        image = np.asarray(image, np.float32)
+        if self.range01:
+            image = (image.astype(np.float32) / 255.0).astype(np.float32)
+        else:
+            image = image.astype(np.float32)
         image = (image - self.mean) / self.std
 
         img_h, img_w = label.shape
@@ -147,14 +153,14 @@ class VOCDataSet(object):
             })
         return files
 
-    def train_xy(self, crop_size=(321, 321), scale=True, mirror=True, mean=(128, 128, 128), std=(1, 1, 1)):
-        return AccessorXY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
+    def train_xy(self, crop_size=(321, 321), scale=True, mirror=True, range01=False, mean=(128, 128, 128), std=(1, 1, 1)):
+        return AccessorXY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, range01=range01, mean=mean, std=std)
 
-    def train_y(self, crop_size=(321, 321), scale=True, mirror=True, mean=(128, 128, 128), std=(1, 1, 1)):
-        return AccessorY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
+    def train_y(self, crop_size=(321, 321), scale=True, mirror=True, range01=False, mean=(128, 128, 128), std=(1, 1, 1)):
+        return AccessorY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, range01=range01, mean=mean, std=std)
 
-    def val_xy(self, crop_size=(321, 321), scale=False, mirror=False, mean=(128, 128, 128), std=(1, 1, 1)):
-        return AccessorXY(self, self._val_files, crop_size=crop_size, scale=scale, mirror=mirror, mean=mean, std=std)
+    def val_xy(self, crop_size=(321, 321), scale=False, mirror=False, range01=False, mean=(128, 128, 128), std=(1, 1, 1)):
+        return AccessorXY(self, self._val_files, crop_size=crop_size, scale=scale, mirror=mirror, range01=range01, mean=mean, std=std)
 
 
 

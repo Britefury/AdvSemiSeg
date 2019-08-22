@@ -9,8 +9,9 @@ except ImportError:
 
 
 class DeepLabv3ResNet101Wrapper (nn.Module):
-    MEAN = np.array([0.485, 0.456, 0.406])
-    STD = np.array([0.229, 0.224, 0.225])
+    MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    RANGE01 = True
 
     URL = 'https://download.pytorch.org/models/deeplabv3_resnet101_coco-586e9e4e.pth'
 

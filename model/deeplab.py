@@ -120,6 +120,7 @@ class Classifier_Module(nn.Module):
 class ResNet(nn.Module):
     MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype=np.float32)
     STD = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+    RANGE01 = False
 
     def __init__(self, block, layers, num_classes):
         self.inplanes = 64

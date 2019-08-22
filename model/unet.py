@@ -70,8 +70,9 @@ def _set_bn_to_eval(m):
 
 
 class ResNetUNet (nn.Module):
-    MEAN = (np.array([0.485, 0.456, 0.406])*255.0).astype(np.float32)
-    STD = (np.array([0.229, 0.224, 0.225])*255.0).astype(np.float32)
+    MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    RANGE01 = True
 
     def __init__(self, resnet_features, channels_in, channels_dec, num_classes):
         super(ResNetUNet, self).__init__()
