@@ -300,6 +300,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
         loss_seg_value = 0
         loss_adv_pred_value = 0
         loss_D_value = 0
+        loss_semi_mask_accum = 0
         loss_semi_value = 0
         loss_semi_adv_value = 0
 
@@ -360,6 +361,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                         semi_gt[semi_ignore_mask] = ignore_label
 
                         semi_ratio = 1.0 - float(semi_ignore_mask.sum())/semi_ignore_mask.size
+
+                        loss_semi_mask_accum += float(semi_ratio)
 
                         if semi_ratio == 0.0:
                             loss_semi_value += 0
@@ -478,14 +481,15 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                 loss_seg_value /= eval_every
                 loss_adv_pred_value /= eval_every
                 loss_D_value /= eval_every
+                loss_semi_mask_accum /= eval_every
                 loss_semi_value /= eval_every
                 loss_semi_adv_value /= eval_every
 
                 sys.stdout.write('\n')
 
                 print(
-                    'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi = {5:.3f}, loss_semi_adv = {6:.3f}'.format(
-                        i_iter, num_steps, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_value,
+                    'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi_mask_rate = {5:.3%} loss_semi = {6:.6f}, loss_semi_adv = {7:.3f}'.format(
+                        i_iter, num_steps, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_mask_accum, loss_semi_value,
                         loss_semi_adv_value))
 
                 for i, (class_name, iou) in enumerate(zip(ds.class_names, per_class_iou)):
@@ -497,6 +501,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                 loss_adv_pred_value = 0
                 loss_D_value = 0
                 loss_semi_value = 0
+                loss_semi_mask_accum = 0
                 loss_semi_adv_value = 0
 
             if snapshot_dir is not None and i_iter % save_snapshot_every == 0 and i_iter!=0:
