@@ -102,10 +102,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
     
     
     
-    import matplotlib.pyplot as plt
-    import random
-    import timeit
-    start = timeit.default_timer()
+    import time
 
 
     with logger.LogFile(log_file if log_file != 'none' else None):
@@ -304,6 +301,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
         loss_semi_value = 0
         loss_semi_adv_value = 0
 
+        t1 = time.time()
+
         print('Training for {} steps...'.format(num_steps))
         for i_iter in range(num_steps+1):
 
@@ -487,9 +486,11 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
 
                 sys.stdout.write('\n')
 
+                t2 = time.time()
+
                 print(
-                    'iter = {0:8d}/{1:8d}, loss_seg = {2:.3f}, loss_adv_p = {3:.3f}, loss_D = {4:.3f}, loss_semi_mask_rate = {5:.3%} loss_semi = {6:.6f}, loss_semi_adv = {7:.3f}'.format(
-                        i_iter, num_steps, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_mask_accum, loss_semi_value,
+                    'iter = {:8d}/{:8d}, took {:.3f}s, loss_seg = {:.6f}, loss_adv_p = {:.6f}, loss_D = {:.6f}, loss_semi_mask_rate = {:.3%} loss_semi = {:.6f}, loss_semi_adv = {:.3f}'.format(
+                        i_iter, num_steps, t2 - t1, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_mask_accum, loss_semi_value,
                         loss_semi_adv_value))
 
                 for i, (class_name, iou) in enumerate(zip(ds.class_names, per_class_iou)):
@@ -504,13 +505,12 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                 loss_semi_mask_accum = 0
                 loss_semi_adv_value = 0
 
+                t1 = t2
+
             if snapshot_dir is not None and i_iter % save_snapshot_every == 0 and i_iter!=0:
                 print('taking snapshot ...')
                 torch.save(model.state_dict(),osp.join(snapshot_dir, 'VOC_'+str(i_iter)+'.pth'))
                 torch.save(model_D.state_dict(),osp.join(snapshot_dir, 'VOC_'+str(i_iter)+'_D.pth'))
-
-        end = timeit.default_timer()
-        print(end-start,'seconds')
 
         if snapshot_dir is not None:
             print('save model ...')
