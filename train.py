@@ -26,6 +26,8 @@ import click
                     help="Base learning rate for training with polynomial decay.")
 @click.option("--learning-rate-d", type=float, default=1e-4,
                     help="Base learning rate for discriminator.")
+@click.option("--supervised", type=bool, default=False,
+                    help="Supervised training only")
 @click.option("--lambda-adv-pred", type=float, default=0.1,
                     help="lambda_adv for adversarial training.")
 @click.option("--lambda-semi", type=float, default=0.1,
@@ -69,7 +71,8 @@ import click
 @click.option("--device", type=str, default='cuda:0',
                     help="choose gpu device.")
 def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_id, ignore_label,
-          crop_size, eval_crop_size, is_training, learning_rate, learning_rate_d, lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
+          crop_size, eval_crop_size, is_training, learning_rate, learning_rate_d, supervised,
+          lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
           d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_d,
           eval_every, save_snapshot_every, snapshot_dir, weight_decay, device):
     settings = locals().copy()
@@ -323,7 +326,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                     param.requires_grad = False
 
                 # do semi first
-                if (lambda_semi > 0 or lambda_semi_adv > 0 ) and i_iter >= semi_start_adv :
+                if not supervised and (lambda_semi > 0 or lambda_semi_adv > 0 ) and i_iter >= semi_start_adv :
                     try:
                         _, batch =  next(trainloader_remain_iter)
                     except:
@@ -406,43 +409,44 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                 loss_adv_pred_value += float(loss_adv_pred)/iter_size
 
 
-                # train D
+                if not supervised:
+                    # train D
 
-                # bring back requires_grad
-                for param in model_D.parameters():
-                    param.requires_grad = True
+                    # bring back requires_grad
+                    for param in model_D.parameters():
+                        param.requires_grad = True
 
-                # train with pred
-                pred = pred.detach()
+                    # train with pred
+                    pred = pred.detach()
 
-                if d_remain:
-                    pred = torch.cat((pred, pred_remain), 0)
-                    ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
+                    if d_remain:
+                        pred = torch.cat((pred, pred_remain), 0)
+                        ignore_mask = np.concatenate((ignore_mask,ignore_mask_remain), axis = 0)
 
-                D_out = model_D(F.softmax(pred, dim=1))
-                loss_D = bce_loss(D_out, make_D_label(pred_label, ignore_mask))
-                loss_D = loss_D/iter_size/2
-                loss_D.backward()
-                loss_D_value += float(loss_D)
+                    D_out = model_D(F.softmax(pred, dim=1))
+                    loss_D = bce_loss(D_out, make_D_label(pred_label, ignore_mask))
+                    loss_D = loss_D/iter_size/2
+                    loss_D.backward()
+                    loss_D_value += float(loss_D)
 
 
-                # train with gt
-                # get gt labels
-                try:
-                    _, batch = next(trainloader_gt_iter)
-                except:
-                    trainloader_gt_iter = enumerate(trainloader_gt)
-                    _, batch = next(trainloader_gt_iter)
+                    # train with gt
+                    # get gt labels
+                    try:
+                        _, batch = next(trainloader_gt_iter)
+                    except:
+                        trainloader_gt_iter = enumerate(trainloader_gt)
+                        _, batch = next(trainloader_gt_iter)
 
-                _, labels_gt, _, _ = batch
-                D_gt_v = one_hot(labels_gt)
-                ignore_mask_gt = (labels_gt.numpy() == ignore_label)
+                    _, labels_gt, _, _ = batch
+                    D_gt_v = one_hot(labels_gt)
+                    ignore_mask_gt = (labels_gt.numpy() == ignore_label)
 
-                D_out = model_D(D_gt_v)
-                loss_D = bce_loss(D_out, make_D_label(gt_label, ignore_mask_gt))
-                loss_D = loss_D/iter_size/2
-                loss_D.backward()
-                loss_D_value += float(loss_D)
+                    D_out = model_D(D_gt_v)
+                    loss_D = bce_loss(D_out, make_D_label(gt_label, ignore_mask_gt))
+                    loss_D = loss_D/iter_size/2
+                    loss_D.backward()
+                    loss_D_value += float(loss_D)
 
 
 
