@@ -321,9 +321,10 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
 
                 # train G
 
-                # don't accumulate grads in D
-                for param in model_D.parameters():
-                    param.requires_grad = False
+                if not supervised:
+                    # don't accumulate grads in D
+                    for param in model_D.parameters():
+                        param.requires_grad = False
 
                 # do semi first
                 if not supervised and (lambda_semi > 0 or lambda_semi_adv > 0 ) and i_iter >= semi_start_adv :
@@ -396,17 +397,20 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
 
                 loss_seg = loss_calc(pred, labels)
 
-                D_out = model_D(F.softmax(pred, dim=1))
+                if supervised:
+                    loss = loss_seg
+                else:
+                    D_out = model_D(F.softmax(pred, dim=1))
 
-                loss_adv_pred = bce_loss(D_out, make_D_label(gt_label, ignore_mask))
+                    loss_adv_pred = bce_loss(D_out, make_D_label(gt_label, ignore_mask))
 
-                loss = loss_seg + lambda_adv_pred * loss_adv_pred
+                    loss = loss_seg + lambda_adv_pred * loss_adv_pred
+                    loss_adv_pred_value += float(loss_adv_pred)/iter_size
 
                 # proper normalization
                 loss = loss/iter_size
                 loss.backward()
                 loss_seg_value += float(loss_seg)/iter_size
-                loss_adv_pred_value += float(loss_adv_pred)/iter_size
 
 
                 if not supervised:
