@@ -26,7 +26,7 @@ import click
                     help="Base learning rate for training with polynomial decay.")
 @click.option("--learning-rate-d", type=float, default=1e-4,
                     help="Base learning rate for discriminator.")
-@click.option("--supervised", type=bool, default=False,
+@click.option("--supervised", is_flag=True, default=False,
                     help="Supervised training only")
 @click.option("--lambda-adv-pred", type=float, default=0.1,
                     help="lambda_adv for adversarial training.")
