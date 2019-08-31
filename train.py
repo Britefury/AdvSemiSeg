@@ -3,7 +3,8 @@ import click
 @click.command()
 @click.option("--log-file", type=str, default='none')
 @click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
-@click.option("--dataset", type=click.Choice(['pascal_aug']), default='pascal_aug', help="available options : pascal_aug")
+@click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal']), default='pascal_aug',
+              help="available options : pascal_aug, pascal")
 @click.option("--batch-size", type=int, default=10,
                     help="Number of images sent to the network in one step.")
 @click.option("--iter-size", type=int, default=1,
@@ -113,7 +114,9 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
 
     with logger.LogFile(log_file if log_file != 'none' else None):
         if dataset == 'pascal_aug':
-            ds = VOCDataSet()
+            ds = VOCDataSet(augmented_pascal=True)
+        elif dataset == 'pascal':
+            ds = VOCDataSet(augmented_pascal=False)
         else:
             print('Dataset {} not yet supported'.format(dataset))
             return

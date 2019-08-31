@@ -125,11 +125,20 @@ class AccessorY (AbstractAccessor):
 
 
 class VOCDataSet(object):
-    def __init__(self, ignore_label=255):
+    def __init__(self, augmented_pascal=True, ignore_label=255):
         self.root = settings.get_config_dir('pascal_voc')
         self.ignore_label = ignore_label
-        self._train_files = self.file_list(os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'train_aug.txt'))
-        self._val_files = self.file_list(os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'val.txt'))
+        if augmented_pascal:
+            self._train_files = self.file_list(
+                os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'train_aug.txt'), augmented_pascal)
+            self._val_files = self.file_list(
+                os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'val.txt'), augmented_pascal)
+        else:
+            self._train_files = self.file_list(
+                os.path.join(self.root, 'ImageSets', 'Segmentation', 'train.txt'), augmented_pascal)
+            self._val_files = self.file_list(
+                os.path.join(self.root, 'ImageSets', 'Segmentation', 'val.txt'), augmented_pascal)
+
         self.num_classes = 21
 
         self.class_names = ['background',  # always index 0
@@ -139,13 +148,16 @@ class VOCDataSet(object):
                             'motorbike', 'person', 'pottedplant',
                             'sheep', 'sofa', 'train', 'tvmonitor']
 
-    def file_list(self, list_path):
+    def file_list(self, list_path, augmented_pascal):
         img_ids = [i_id.strip() for i_id in open(list_path)]
         files = []
         # for split in ["train", "trainval", "val"]:
         for name in img_ids:
             img_file = osp.join(self.root, "JPEGImages/%s.jpg" % name)
-            label_file = osp.join(self.root, "SegmentationClassAug/%s.png" % name)
+            if augmented_pascal:
+                label_file = osp.join(self.root, "SegmentationClassAug/%s.png" % name)
+            else:
+                label_file = osp.join(self.root, "SegmentationClass/%s.png" % name)
             files.append({
                 "img": img_file,
                 "label": label_file,
@@ -165,7 +177,7 @@ class VOCDataSet(object):
 
 
 if __name__ == '__main__':
-    dst = VOCDataSet("./data", is_transform=True)
+    dst = VOCDataSet()
     trainloader = data.DataLoader(dst, batch_size=4)
     for i, data in enumerate(trainloader):
         imgs, labels = data
