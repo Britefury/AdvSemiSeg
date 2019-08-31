@@ -39,7 +39,7 @@ class AccessorXY (AbstractAccessor):
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
-        label = cv2.imread(datafiles["label"], cv2.IMREAD_GRAYSCALE)
+        label = self.ds.read_label_image(datafiles['label'])
         size = image.shape
         name = datafiles["name"]
         if self.scale:
@@ -81,7 +81,7 @@ class AccessorY (AbstractAccessor):
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
-        label = cv2.imread(datafiles["label"], cv2.IMREAD_GRAYSCALE)
+        label = self.ds.read_label_image(datafiles['label'])
         size = image.shape
         name = datafiles["name"]
 
@@ -127,17 +127,14 @@ class AccessorY (AbstractAccessor):
 class VOCDataSet(object):
     def __init__(self, augmented_pascal=True, ignore_label=255):
         self.root = settings.get_config_dir('pascal_voc')
+        self.augmented_pascal = augmented_pascal
         self.ignore_label = ignore_label
         if augmented_pascal:
-            self._train_files = self.file_list(
-                os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'train_aug.txt'), augmented_pascal)
-            self._val_files = self.file_list(
-                os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'val.txt'), augmented_pascal)
+            self._train_files = self.file_list(os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'train_aug.txt'))
+            self._val_files = self.file_list(os.path.join(self.root, 'ImageSets', 'SegmentationAug', 'val.txt'))
         else:
-            self._train_files = self.file_list(
-                os.path.join(self.root, 'ImageSets', 'Segmentation', 'train.txt'), augmented_pascal)
-            self._val_files = self.file_list(
-                os.path.join(self.root, 'ImageSets', 'Segmentation', 'val.txt'), augmented_pascal)
+            self._train_files = self.file_list(os.path.join(self.root, 'ImageSets', 'Segmentation', 'train.txt'))
+            self._val_files = self.file_list(os.path.join(self.root, 'ImageSets', 'Segmentation', 'val.txt'))
 
         self.num_classes = 21
 
@@ -148,14 +145,14 @@ class VOCDataSet(object):
                             'motorbike', 'person', 'pottedplant',
                             'sheep', 'sofa', 'train', 'tvmonitor']
 
-    def file_list(self, list_path, augmented_pascal):
+    def file_list(self, list_path):
         img_ids = [i_id.strip() for i_id in open(list_path)]
         img_ids.sort()
         files = []
         # for split in ["train", "trainval", "val"]:
         for name in img_ids:
             img_file = osp.join(self.root, "JPEGImages/%s.jpg" % name)
-            if augmented_pascal:
+            if self.augmented_pascal:
                 label_file = osp.join(self.root, "SegmentationClassAug/%s.png" % name)
             else:
                 label_file = osp.join(self.root, "SegmentationClass/%s.png" % name)
@@ -165,6 +162,12 @@ class VOCDataSet(object):
                 "name": name
             })
         return files
+
+    def read_label_image(self, path):
+        if self.augmented_pascal:
+            return cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        else:
+            return np.array(Image.open(path))
 
     def train_xy(self, crop_size=(321, 321), scale=True, mirror=True, range01=False, mean=(128, 128, 128), std=(1, 1, 1)):
         return AccessorXY(self, self._train_files, crop_size=crop_size, scale=scale, mirror=mirror, range01=range01, mean=mean, std=std)
