@@ -11,7 +11,9 @@ import click
 @click.option("--num-workers", type=int, default=4,
                     help="number of workers for multithread dataloading.")
 @click.option("--partial-data", type=float, default=0.5,
-                    help="The index of the label to ignore during the training.")
+                    help="The proportion of samples to use for supervised learning.")
+@click.option("--partial-data-size", type=int, default=-1,
+                    help="The number of samples to use for supervised learning, overrides partial-data.")
 @click.option("--partial-id", type=str, default=None,
                     help="restore partial id list")
 @click.option("--ignore-label", type=int, default=255,
@@ -70,7 +72,8 @@ import click
                     help="Regularisation parameter for L2-loss.")
 @click.option("--device", type=str, default='cuda:0',
                     help="choose gpu device.")
-def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_id, ignore_label,
+def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_data_size, partial_id,
+          ignore_label,
           crop_size, eval_crop_size, is_training, learning_rate, learning_rate_d, supervised,
           lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
           d_remain, momentum, not_restore_last, num_steps, power, random_mirror, random_scale, random_seed, restore_from, restore_from_d,
@@ -225,7 +228,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
 
         train_dataset_size = len(ds_train_xy)
 
-        if partial_data == 1.0:
+        if partial_data == 1.0 and partial_data_size == -1:
             trainloader = data.DataLoader(ds_train_xy,
                             batch_size=batch_size, shuffle=True, num_workers=5, pin_memory=True)
 
@@ -235,7 +238,10 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
             print('|val|={}'.format(len(ds_val_xy)))
         else:
             #sample partial data
-            partial_size = int(partial_data * train_dataset_size)
+            if partial_data_size != -1:
+                partial_size = partial_data_size
+            else:
+                partial_size = int(partial_data * train_dataset_size)
 
             if partial_id is not None:
                 train_ids = pickle.load(open(partial_id))
