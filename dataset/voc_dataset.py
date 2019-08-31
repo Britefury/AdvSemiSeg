@@ -150,6 +150,7 @@ class VOCDataSet(object):
 
     def file_list(self, list_path, augmented_pascal):
         img_ids = [i_id.strip() for i_id in open(list_path)]
+        img_ids.sort()
         files = []
         # for split in ["train", "trainval", "val"]:
         for name in img_ids:
