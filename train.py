@@ -57,7 +57,7 @@ import click
                     help="Whether to randomly mirror the inputs during the training.")
 @click.option("--random-scale", is_flag=True, default=False,
                     help="Whether to randomly scale the inputs during the training.")
-@click.option("--random-seed", type=int, default=1234,
+@click.option("--random-seed", type=int, default=12345,
                     help="Random seed to have reproducible results.")
 @click.option("--restore-from", type=str, default='http://vllab1.ucmerced.edu/~whung/adv-semi-seg/resnet101COCO-41f33a49.pth',
                     help="Where restore model parameters from.")
@@ -251,8 +251,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                 print('loading train ids from {}'.format(partial_id))
             else:
                 rng = np.random.RandomState(random_seed)
-                train_ids = list(range(train_dataset_size))
-                rng.shuffle(train_ids)
+                train_ids = list(rng.permutation(train_dataset_size))
 
             if snapshot_dir is not None:
                 pickle.dump(train_ids, open(osp.join(snapshot_dir, 'train_id.pkl'), 'wb'))
