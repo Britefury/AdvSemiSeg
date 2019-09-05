@@ -112,6 +112,12 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
     import time
 
 
+    if log_file != '' and log_file != 'none':
+        if os.path.exists(log_file):
+            print('Log file {} already exists; exiting...'.format(log_file))
+            return
+
+
     with logger.LogFile(log_file if log_file != 'none' else None):
         if dataset == 'pascal_aug':
             ds = VOCDataSet(augmented_pascal=True)
