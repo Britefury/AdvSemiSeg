@@ -237,12 +237,19 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
 
         train_dataset_size = len(ds_train_xy)
 
-        if partial_data == 1.0 and partial_data_size == -1:
+        if partial_data_size != -1:
+            if partial_data_size > partial_data_size:
+                print('partial-data-size > |train|: exiting')
+                return
+
+        if partial_data == 1.0 and (partial_data_size == -1 or partial_data_size == train_dataset_size):
             trainloader = data.DataLoader(ds_train_xy,
                             batch_size=batch_size, shuffle=True, num_workers=5, pin_memory=True)
 
             trainloader_gt = data.DataLoader(ds_train_y,
                             batch_size=batch_size, shuffle=True, num_workers=5, pin_memory=True)
+
+            trainloader_remain = None
             print('|train|={}'.format(train_dataset_size))
             print('|val|={}'.format(len(ds_val_xy)))
         else:
@@ -341,7 +348,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                         param.requires_grad = False
 
                 # do semi first
-                if not supervised and (lambda_semi > 0 or lambda_semi_adv > 0 ) and i_iter >= semi_start_adv :
+                if not supervised and (lambda_semi > 0 or lambda_semi_adv > 0 ) and i_iter >= semi_start_adv and \
+                        trainloader_remain is not None:
                     try:
                         _, batch =  next(trainloader_remain_iter)
                     except:
