@@ -110,33 +110,45 @@ class ResNetUNet (nn.Module):
 
 
     def forward(self, x, feature_maps=False, use_dropout=False):
+        print(1)
         r4, r8, r16, r32 = self.resnet_features(x)
+        print(2)
 
         x_32 = F.relu(self.conv_r32_1(r32))
         x_16 = F.relu(self.conv_r32_r16(x_32))
+        print(3)
 
         x_16 = F.relu(self.conv_r16_1(torch.cat([x_16, r16], dim=1)))
         x_8 = F.relu(self.conv_r16_r8(x_16))
+        print(4)
 
         x_8 = F.relu(self.conv_r8_1(torch.cat([x_8, r8], dim=1)))
         x_4 = F.relu(self.conv_r8_r4(x_8))
+        print(5)
 
         x_4 = F.relu(self.conv_r4_1(torch.cat([x_4, r4], dim=1)))
         x_2 = F.relu(self.conv_r4_r2(x_4))
+        print(6)
 
         x_2 = F.relu(self.conv_r2_1(x_2))
         x_1 = F.relu(self.conv_r2_r1(x_2))
+        print(7)
 
         x_1 = F.relu(self.conv_r1_1(x_1))
+        print(8)
 
         if use_dropout:
             x_1 = self.drop(x_1)
+        print(9)
 
         y = self.conv_out(x_1)
+        print(10)
 
         if feature_maps:
+            print('10a')
             return r4, r8, r16, r32, x_32, x_16, x_8, x_4, x_2, x_1, y
         else:
+            print('10b')
             return y
 
 
