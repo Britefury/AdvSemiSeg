@@ -3,7 +3,7 @@ import click
 @click.command()
 @click.option("--log-file", type=str, default='none')
 @click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'unet_bn_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
-@click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal']), default='pascal_aug',
+@click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal', 'cityscapes', 'gtav']), default='pascal_aug',
               help="available options : pascal_aug, pascal")
 @click.option("--freeze-bn", is_flag=True, default=False,
                     help="Freeze batch-norm layers.")
@@ -33,7 +33,7 @@ import click
                     help="Base learning rate for discriminator.")
 @click.option("--supervised", is_flag=True, default=False,
                     help="Supervised training only")
-@click.option("--lambda-adv-pred", type=float, default=0.1,
+@click.option("--lambda-adv-pred", type=float, default=0.01,
                     help="lambda_adv for adversarial training.")
 @click.option("--lambda-semi", type=float, default=0.1,
                     help="lambda_semi for adversarial training.")
@@ -105,6 +105,8 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
     from utils.loss import CrossEntropy2d, BCEWithLogitsLoss2d
     from utils.evaluation import EvaluatorIoU
     from dataset.voc_dataset import VOCDataSet
+    from dataset.cityscapes_dataset import CityscapesDataSet
+    from dataset.gtav_dataset import GTAVDataSet
     import logger
     
     
@@ -126,6 +128,10 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
             ds = VOCDataSet(augmented_pascal=True)
         elif dataset == 'pascal':
             ds = VOCDataSet(augmented_pascal=False)
+        elif dataset == 'cityscapes':
+            ds = CityscapesDataSet()
+        elif dataset == 'gtav':
+            ds = GTAVDataSet(n_val=2000, rng=np.random.RandomState(12345))
         else:
             print('Dataset {} not yet supported'.format(dataset))
             return
