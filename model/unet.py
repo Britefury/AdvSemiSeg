@@ -141,8 +141,7 @@ class ResNetUNet (nn.Module):
 
 
     def freeze_batchnorm(self):
-        pass
-        # self.resnet_features.apply(_set_bn_to_eval)
+        self.resnet_features.apply(_set_bn_to_eval)
 
 
     def pretrained_parameters(self):
@@ -241,8 +240,7 @@ class ResNetUNetBN (nn.Module):
 
 
     def freeze_batchnorm(self):
-        # self.resnet_features.apply(_set_bn_to_eval)
-        pass
+        self.resnet_features.apply(_set_bn_to_eval)
 
 
     def pretrained_parameters(self):

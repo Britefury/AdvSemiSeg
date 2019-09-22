@@ -32,7 +32,7 @@ class DeepLabv3ResNet101Wrapper (nn.Module):
 
 
     def freeze_batchnorm(self):
-        pass
+        self.deeplab.apply(_set_bn_to_eval)
 
 
     def pretrained_parameters(self):

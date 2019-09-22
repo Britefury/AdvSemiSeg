@@ -5,6 +5,8 @@ import click
 @click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'unet_bn_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
 @click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal']), default='pascal_aug',
               help="available options : pascal_aug, pascal")
+@click.option("--freeze-bn", is_flag=True, default=False,
+                    help="Freeze batch-norm layers.")
 @click.option("--batch-size", type=int, default=10,
                     help="Number of images sent to the network in one step.")
 @click.option("--iter-size", type=int, default=1,
@@ -73,7 +75,7 @@ import click
                     help="Regularisation parameter for L2-loss.")
 @click.option("--device", type=str, default='cuda:0',
                     help="choose gpu device.")
-def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_data, partial_data_size, partial_id,
+def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers, partial_data, partial_data_size, partial_id,
           ignore_label,
           crop_size, eval_crop_size, is_training, learning_rate, learning_rate_d, supervised,
           lambda_adv_pred, lambda_semi, lambda_semi_adv, mask_t, semi_start, semi_start_adv,
@@ -345,7 +347,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
         for i_iter in range(num_steps+1):
 
             model.train()
-            model.freeze_batchnorm()
+            if freeze_bn:
+                model.freeze_batchnorm()
 
             optimizer.zero_grad()
             adjust_learning_rate(optimizer, i_iter)
