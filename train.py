@@ -3,7 +3,7 @@ import click
 @click.command()
 @click.option("--log-file", type=str, default='none')
 @click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'unet_bn_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
-@click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal', 'cityscapes', 'gtav']), default='pascal_aug',
+@click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal', 'cityscapes', 'gtav', 'gtav_to_cityscapes']), default='pascal_aug',
               help="available options : pascal_aug, pascal")
 @click.option("--freeze-bn", is_flag=True, default=False,
                     help="Freeze batch-norm layers.")
@@ -125,13 +125,16 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
 
     with logger.LogFile(log_file if log_file != 'none' else None):
         if dataset == 'pascal_aug':
-            ds = VOCDataSet(augmented_pascal=True)
+            ds_src = ds_tgt = VOCDataSet(augmented_pascal=True)
         elif dataset == 'pascal':
-            ds = VOCDataSet(augmented_pascal=False)
+            ds_src = ds_tgt = VOCDataSet(augmented_pascal=False)
         elif dataset == 'cityscapes':
-            ds = CityscapesDataSet()
+            ds_src = ds_tgt = CityscapesDataSet()
         elif dataset == 'gtav':
-            ds = GTAVDataSet(n_val=2000, rng=np.random.RandomState(12345))
+            ds_src = ds_tgt = GTAVDataSet(n_val=2000, rng=np.random.RandomState(random_seed))
+        elif dataset == 'gtav_to_cityscapes':
+            ds_src = GTAVDataSet(n_val=0, rng=np.random.RandomState(random_seed))
+            ds_tgt = CityscapesDataSet()
         else:
             print('Dataset {} not yet supported'.format(dataset))
             return
@@ -176,8 +179,8 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
 
         def one_hot(label):
             label = label.numpy()
-            one_hot = np.zeros((label.shape[0], ds.num_classes, label.shape[1], label.shape[2]), dtype=label.dtype)
-            for i in range(ds.num_classes):
+            one_hot = np.zeros((label.shape[0], ds_tgt.num_classes, label.shape[1], label.shape[2]), dtype=label.dtype)
+            for i in range(ds_tgt.num_classes):
                 one_hot[:,i,...] = (label==i)
             #handle ignore labels
             return torch.tensor(one_hot, dtype=torch.float, device=torch_device)
@@ -199,13 +202,13 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
 
         # create network
         if arch == 'deeplab2':
-            model = Res_Deeplab(num_classes=ds.num_classes)
+            model = Res_Deeplab(num_classes=ds_tgt.num_classes)
         elif arch == 'unet_resnet50':
-            model = unet_resnet50(num_classes=ds.num_classes)
+            model = unet_resnet50(num_classes=ds_tgt.num_classes)
         elif arch == 'unet_bn_resnet50':
-            model = unet_bn_resnet50(num_classes=ds.num_classes)
+            model = unet_bn_resnet50(num_classes=ds_tgt.num_classes)
         elif arch == 'resnet101_deeplabv3':
-            model = resnet101_deeplabv3(num_classes=ds.num_classes)
+            model = resnet101_deeplabv3(num_classes=ds_tgt.num_classes)
         else:
             print('Architecture {} not supported'.format(arch))
             return
@@ -228,7 +231,7 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
         model = model.to(torch_device)
 
         # init D
-        model_D = FCDiscriminator(num_classes=ds.num_classes)
+        model_D = FCDiscriminator(num_classes=ds_tgt.num_classes)
         if restore_from_d is not None:
             model_D.load_state_dict(torch.load(restore_from_d))
         model_D.train()
@@ -242,33 +245,87 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
                 os.makedirs(snapshot_dir)
 
 
-        ds_train_xy = ds.train_xy(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
-        ds_train_y = ds.train_y(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
-        ds_val_xy = ds.val_xy(crop_size=eval_crop_size, scale=False, mirror=False, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+        if ds_src is ds_tgt:
+            ds_train_xy = ds_tgt.train_xy(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+            ds_train_y = ds_tgt.train_y(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+            ds_val_xy = ds_tgt.val_xy(crop_size=eval_crop_size, scale=False, mirror=False, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
 
-        train_dataset_size = len(ds_train_xy)
+            train_dataset_size = len(ds_train_xy)
 
-        if partial_data_size != -1:
-            if partial_data_size > train_dataset_size:
-                print('partial-data-size > |train|: exiting')
-                return
+            if partial_data_size != -1:
+                if partial_data_size > train_dataset_size:
+                    print('partial-data-size > |train|: exiting')
+                    return
 
-        if partial_data == 1.0 and (partial_data_size == -1 or partial_data_size == train_dataset_size):
-            trainloader = data.DataLoader(ds_train_xy,
-                            batch_size=batch_size, shuffle=True, num_workers=5, pin_memory=True)
+            if partial_data == 1.0 and (partial_data_size == -1 or partial_data_size == train_dataset_size):
+                trainloader_sup = data.DataLoader(ds_train_xy, batch_size=batch_size, shuffle=True,
+                                                  num_workers=5, pin_memory=True)
 
-            trainloader_gt = data.DataLoader(ds_train_y,
-                            batch_size=batch_size, shuffle=True, num_workers=5, pin_memory=True)
+                trainloader_sup_gt = data.DataLoader(ds_train_y, batch_size=batch_size, shuffle=True,
+                                                     num_workers=5, pin_memory=True)
 
-            trainloader_remain = None
-            print('|train|={}'.format(train_dataset_size))
-            print('|val|={}'.format(len(ds_val_xy)))
+                trainloader_unsup = None
+                print('|train|={}'.format(train_dataset_size))
+                print('|val|={}'.format(len(ds_val_xy)))
+            else:
+                #sample partial data
+                if partial_data_size != -1:
+                    partial_size = partial_data_size
+                else:
+                    partial_size = int(partial_data * train_dataset_size)
+
+                if partial_id is not None:
+                    print('loading train ids from {}'.format(partial_id))
+                    partial_id_ext = os.path.splitext(partial_id)[1].lower()
+                    if partial_id_ext == '.pkl':
+                        train_ids = pickle.load(open(partial_id))
+                    else:
+                        train_ids = ast.literal_eval(open(partial_id, 'r').read())
+                        if len(train_ids) != partial_size:
+                            print('WARNING!!!!!!!!!!!!!!!!!!  len(train_ids) != partial_size')
+                    if len(train_ids) < train_dataset_size:
+                        train_ids_set = set(train_ids)
+                        train_ids_unsup = [i for i in range(train_dataset_size) if i not in train_ids_set]
+                        train_ids = train_ids + train_ids_unsup
+                    train_ids = np.array(train_ids)
+                else:
+                    rng = np.random.RandomState(random_seed)
+                    train_ids = list(rng.permutation(train_dataset_size))
+
+                if snapshot_dir is not None:
+                    pickle.dump(train_ids, open(osp.join(snapshot_dir, 'train_id.pkl'), 'wb'))
+
+                print('|train supervised|={}'.format(partial_size))
+                print('|train unsupervised|={}'.format(train_dataset_size - partial_size))
+                print('|val|={}'.format(len(ds_val_xy)))
+
+                print('supervised={}'.format(list(train_ids[:partial_size])))
+
+                train_sup_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
+                train_unsup_sampler = data.sampler.SubsetRandomSampler(train_ids[partial_size:])
+                train_sup_gt_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
+
+                trainloader_sup = data.DataLoader(ds_train_xy, batch_size=batch_size,
+                                                  sampler=train_sup_sampler, num_workers=3, pin_memory=True)
+                trainloader_unsup = data.DataLoader(ds_train_xy, batch_size=batch_size,
+                                                    sampler=train_unsup_sampler, num_workers=3, pin_memory=True)
+                trainloader_sup_gt = data.DataLoader(ds_train_y, batch_size=batch_size,
+                                                     sampler=train_sup_gt_sampler, num_workers=3, pin_memory=True)
+
+                trainloader_unsup_iter = enumerate(trainloader_unsup)
         else:
-            #sample partial data
+            ds_src_train_xy = ds_src.train_xy(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+            ds_tgt_train_xy = ds_tgt.train_xy(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+            ds_src_train_y = ds_src.train_y(crop_size=crop_size, scale=random_scale, mirror=random_mirror, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+            ds_val_xy = ds_tgt.val_xy(crop_size=eval_crop_size, scale=False, mirror=False, range01=model.RANGE01, mean=model.MEAN, std=model.STD)
+
+            # sample partial data
+            src_dataset_size = len(ds_src_train_xy)
+            tgt_dataset_size = len(ds_tgt_train_xy)
             if partial_data_size != -1:
                 partial_size = partial_data_size
             else:
-                partial_size = int(partial_data * train_dataset_size)
+                partial_size = int(partial_data * src_dataset_size)
 
             if partial_id is not None:
                 print('loading train ids from {}'.format(partial_id))
@@ -279,43 +336,41 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
                     train_ids = ast.literal_eval(open(partial_id, 'r').read())
                     if len(train_ids) != partial_size:
                         print('WARNING!!!!!!!!!!!!!!!!!!  len(train_ids) != partial_size')
-                if len(train_ids) < train_dataset_size:
+                if len(train_ids) < src_dataset_size:
                     train_ids_set = set(train_ids)
-                    train_ids_unsup = [i for i in range(train_dataset_size) if i not in train_ids_set]
+                    train_ids_unsup = [i for i in range(src_dataset_size) if i not in train_ids_set]
                     train_ids = train_ids + train_ids_unsup
                 train_ids = np.array(train_ids)
             else:
                 rng = np.random.RandomState(random_seed)
-                train_ids = list(rng.permutation(train_dataset_size))
+                train_ids = list(rng.permutation(src_dataset_size))
 
             if snapshot_dir is not None:
                 pickle.dump(train_ids, open(osp.join(snapshot_dir, 'train_id.pkl'), 'wb'))
 
-            print('|train supervised|={}'.format(partial_size))
-            print('|train unsupervised|={}'.format(train_dataset_size - partial_size))
+            print('|src train supervised|={}'.format(partial_size))
+            print('|tgt train unsupervised|={}'.format(tgt_dataset_size))
             print('|val|={}'.format(len(ds_val_xy)))
 
-            print('supervised={}'.format(list(train_ids[:partial_size])))
+            train_sup_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
+            train_unsup_sampler = data.sampler.RandomSampler(ds_tgt_train_xy)
+            train_sup_gt_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
 
-            train_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
-            train_remain_sampler = data.sampler.SubsetRandomSampler(train_ids[partial_size:])
-            train_gt_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
+            trainloader_sup = data.DataLoader(ds_src_train_xy, batch_size=batch_size,
+                                              sampler=train_sup_sampler, num_workers=3, pin_memory=True)
+            trainloader_unsup = data.DataLoader(ds_tgt_train_xy, batch_size=batch_size,
+                                                sampler=train_unsup_sampler, num_workers=3, pin_memory=True)
+            trainloader_sup_gt = data.DataLoader(ds_src_train_y, batch_size=batch_size,
+                                                 sampler=train_sup_gt_sampler, num_workers=3, pin_memory=True)
 
-            trainloader = data.DataLoader(ds_train_xy,
-                            batch_size=batch_size, sampler=train_sampler, num_workers=3, pin_memory=True)
-            trainloader_remain = data.DataLoader(ds_train_xy,
-                            batch_size=batch_size, sampler=train_remain_sampler, num_workers=3, pin_memory=True)
-            trainloader_gt = data.DataLoader(ds_train_y,
-                            batch_size=batch_size, sampler=train_gt_sampler, num_workers=3, pin_memory=True)
-
-            trainloader_remain_iter = enumerate(trainloader_remain)
+            trainloader_unsup_iter = enumerate(trainloader_unsup)
 
         testloader = data.DataLoader(ds_val_xy, batch_size=1, shuffle=False, pin_memory=True)
 
         print('Data loaders ready')
 
-        trainloader_iter = enumerate(trainloader)
-        trainloader_gt_iter = enumerate(trainloader_gt)
+        trainloader_sup_iter = enumerate(trainloader_sup)
+        trainloader_sup_gt_iter = enumerate(trainloader_sup_gt)
 
 
         # implement model.optim_parameters(args) to handle different models' lr setting
@@ -372,12 +427,12 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
 
                 # do semi first
                 if not supervised and (lambda_semi > 0 or lambda_semi_adv > 0 ) and i_iter >= semi_start_adv and \
-                        trainloader_remain is not None:
+                        trainloader_unsup is not None:
                     try:
-                        _, batch =  next(trainloader_remain_iter)
+                        _, batch =  next(trainloader_unsup_iter)
                     except:
-                        trainloader_remain_iter = enumerate(trainloader_remain)
-                        _, batch = next(trainloader_remain_iter)
+                        trainloader_unsup_iter = enumerate(trainloader_unsup)
+                        _, batch = next(trainloader_unsup_iter)
 
                     # only access to img
                     images, _, _, _ = batch
@@ -430,10 +485,10 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
                 # train with source
 
                 try:
-                    _, batch = next(trainloader_iter)
+                    _, batch = next(trainloader_sup_iter)
                 except:
-                    trainloader_iter = enumerate(trainloader)
-                    _, batch = next(trainloader_iter)
+                    trainloader_sup_iter = enumerate(trainloader_sup)
+                    _, batch = next(trainloader_sup_iter)
 
                 images, labels, _, _ = batch
                 images = images.float().to(torch_device)
@@ -482,10 +537,10 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
                     # train with gt
                     # get gt labels
                     try:
-                        _, batch = next(trainloader_gt_iter)
+                        _, batch = next(trainloader_sup_gt_iter)
                     except:
-                        trainloader_gt_iter = enumerate(trainloader_gt)
-                        _, batch = next(trainloader_gt_iter)
+                        trainloader_sup_gt_iter = enumerate(trainloader_sup_gt)
+                        _, batch = next(trainloader_sup_gt_iter)
 
                     _, labels_gt, _, _ = batch
                     D_gt_v = one_hot(labels_gt)
@@ -508,7 +563,7 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
             if i_iter % eval_every == 0 and i_iter != 0:
                 model.eval()
                 with torch.no_grad():
-                    evaluator = EvaluatorIoU(ds.num_classes)
+                    evaluator = EvaluatorIoU(ds_tgt.num_classes)
                     for index, batch in enumerate(testloader):
                         image, label, size, name = batch
                         size = size[0].numpy()
@@ -546,7 +601,7 @@ def train(log_file, arch, dataset, freeze_bn, batch_size, iter_size, num_workers
                         i_iter, num_steps, t2 - t1, loss_seg_value, loss_adv_pred_value, loss_D_value, loss_semi_mask_accum, loss_semi_value,
                         loss_semi_adv_value))
 
-                for i, (class_name, iou) in enumerate(zip(ds.class_names, per_class_iou)):
+                for i, (class_name, iou) in enumerate(zip(ds_tgt.class_names, per_class_iou)):
                     print('class {:2d} {:12} IU {:.2f}'.format(i, class_name, iou))
 
                 print('meanIOU: ' + str(mean_iou) + '\n')
