@@ -2,7 +2,7 @@ import click
 
 @click.command()
 @click.option("--log-file", type=str, default='none')
-@click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
+@click.option("--arch", type=click.Choice(['deeplab2', 'unet_resnet50', 'unet_bn_resnet50', 'resnet101_deeplabv3']), default='deeplab2', help="available options : deeplab2/unet_resnet50")
 @click.option("--dataset", type=click.Choice(['pascal_aug', 'pascal']), default='pascal_aug',
               help="available options : pascal_aug, pascal")
 @click.option("--batch-size", type=int, default=10,
@@ -94,9 +94,10 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
     import os
     import os.path as osp
     import pickle
+    import ast
 
     from model.deeplab import Res_Deeplab
-    from model.unet import unet_resnet50
+    from model.unet import unet_resnet50, unet_bn_resnet50
     from model.deeplabv3 import resnet101_deeplabv3
     from model.discriminator import FCDiscriminator
     from utils.loss import CrossEntropy2d, BCEWithLogitsLoss2d
@@ -193,6 +194,8 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
             model = Res_Deeplab(num_classes=ds.num_classes)
         elif arch == 'unet_resnet50':
             model = unet_resnet50(num_classes=ds.num_classes)
+        elif arch == 'unet_bn_resnet50':
+            model = unet_bn_resnet50(num_classes=ds.num_classes)
         elif arch == 'resnet101_deeplabv3':
             model = resnet101_deeplabv3(num_classes=ds.num_classes)
         else:
@@ -238,7 +241,7 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
         train_dataset_size = len(ds_train_xy)
 
         if partial_data_size != -1:
-            if partial_data_size > partial_data_size:
+            if partial_data_size > train_dataset_size:
                 print('partial-data-size > |train|: exiting')
                 return
 
@@ -260,8 +263,19 @@ def train(log_file, arch, dataset, batch_size, iter_size, num_workers, partial_d
                 partial_size = int(partial_data * train_dataset_size)
 
             if partial_id is not None:
-                train_ids = pickle.load(open(partial_id))
                 print('loading train ids from {}'.format(partial_id))
+                partial_id_ext = os.path.splitext(partial_id)[1].lower()
+                if partial_id_ext == '.pkl':
+                    train_ids = pickle.load(open(partial_id))
+                else:
+                    train_ids = ast.literal_eval(open(partial_id, 'r').read())
+                    if len(train_ids) != partial_size:
+                        print('WARNING!!!!!!!!!!!!!!!!!!  len(train_ids) != partial_size')
+                if len(train_ids) < train_dataset_size:
+                    train_ids_set = set(train_ids)
+                    train_ids_unsup = [i for i in range(train_dataset_size) if i not in train_ids_set]
+                    train_ids = train_ids + train_ids_unsup
+                train_ids = np.array(train_ids)
             else:
                 rng = np.random.RandomState(random_seed)
                 train_ids = list(rng.permutation(train_dataset_size))

@@ -158,10 +158,118 @@ class ResNetUNet (nn.Module):
 
 
 
+class ResNetUNetBN (nn.Module):
+    MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    RANGE01 = True
+
+    def __init__(self, resnet_features, channels_in, channels_dec, num_classes):
+        super(ResNetUNetBN, self).__init__()
+
+        if len(channels_in) != 4:
+            raise ValueError('len(channels_in) should be 4, not {}'.format(len(channels_in)))
+
+        if len(channels_dec) != 6:
+            raise ValueError('len(channels_dec) should be 6, not {}'.format(len(channels_dec)))
+
+        self.resnet_features = resnet_features
+        self.channels_in = channels_in
+        self.channels_dec = channels_dec
+
+        self.conv_r32_1 = nn.Conv2d(channels_in[3], channels_dec[5], 3, padding=1)
+        self.conv_r32_1_bn = nn.BatchNorm2d(channels_dec[5])
+        self.conv_r32_r16 = nn.ConvTranspose2d(channels_dec[5], channels_dec[4], 4, stride=2, padding=1)
+        self.conv_r32_r16_bn = nn.BatchNorm2d(channels_dec[4])
+
+        self.conv_r16_1 = nn.Conv2d(channels_in[2] + channels_dec[4], channels_dec[4], 3, padding=1)
+        self.conv_r16_1_bn = nn.BatchNorm2d(channels_dec[4])
+        self.conv_r16_r8 = nn.ConvTranspose2d(channels_dec[4], channels_dec[3], 4, stride=2, padding=1)
+        self.conv_r16_r8_bn = nn.BatchNorm2d(channels_dec[3])
+
+        self.conv_r8_1 = nn.Conv2d(channels_in[1] + channels_dec[3], channels_dec[3], 3, padding=1)
+        self.conv_r8_1_bn = nn.BatchNorm2d(channels_dec[3])
+        self.conv_r8_r4 = nn.ConvTranspose2d(channels_dec[3], channels_dec[2], 4, stride=2, padding=1)
+        self.conv_r8_r4_bn = nn.BatchNorm2d(channels_dec[2])
+
+        self.conv_r4_1 = nn.Conv2d(channels_in[0] + channels_dec[2], channels_dec[2], 3, padding=1)
+        self.conv_r4_1_bn = nn.BatchNorm2d(channels_dec[2])
+        self.conv_r4_r2 = nn.ConvTranspose2d(channels_dec[2], channels_dec[1], 4, stride=2, padding=1)
+        self.conv_r4_r2_bn = nn.BatchNorm2d(channels_dec[1])
+
+        self.conv_r2_1 = nn.Conv2d(channels_dec[1], channels_dec[1], 3, padding=1)
+        self.conv_r2_1_bn = nn.BatchNorm2d(channels_dec[1])
+        self.conv_r2_r1 = nn.ConvTranspose2d(channels_dec[1], channels_dec[0], 4, stride=2, padding=1)
+        self.conv_r2_r1_bn = nn.BatchNorm2d(channels_dec[0])
+
+        self.conv_r1_1 = nn.Conv2d(channels_dec[0], channels_dec[0], 3, padding=1)
+
+        self.conv_out = nn.Conv2d(channels_dec[0], num_classes, 1)
+
+        self.drop = nn.Dropout()
+
+
+    def forward(self, x, feature_maps=False, use_dropout=False):
+        r4, r8, r16, r32 = self.resnet_features(x)
+
+        x_32 = F.relu(self.conv_r32_1_bn(self.conv_r32_1(r32)))
+        x_16 = F.relu(self.conv_r32_r16_bn(self.conv_r32_r16(x_32)))
+
+        x_16 = F.relu(self.conv_r16_1_bn(self.conv_r16_1(torch.cat([x_16, r16], dim=1))))
+        x_8 = F.relu(self.conv_r16_r8_bn(self.conv_r16_r8(x_16)))
+
+        x_8 = F.relu(self.conv_r8_1_bn(self.conv_r8_1(torch.cat([x_8, r8], dim=1))))
+        x_4 = F.relu(self.conv_r8_r4_bn(self.conv_r8_r4(x_8)))
+
+        x_4 = F.relu(self.conv_r4_1_bn(self.conv_r4_1(torch.cat([x_4, r4], dim=1))))
+        x_2 = F.relu(self.conv_r4_r2_bn(self.conv_r4_r2(x_4)))
+
+        x_2 = F.relu(self.conv_r2_1_bn(self.conv_r2_1(x_2)))
+        x_1 = F.relu(self.conv_r2_r1_bn(self.conv_r2_r1(x_2)))
+
+        x_1 = F.relu(self.conv_r1_1(x_1))
+
+        if use_dropout:
+            x_1 = self.drop(x_1)
+
+        y = self.conv_out(x_1)
+
+        if feature_maps:
+            return r4, r8, r16, r32, x_32, x_16, x_8, x_4, x_2, x_1, y
+        else:
+            return y
+
+
+    def freeze_batchnorm(self):
+        self.resnet_features.apply(_set_bn_to_eval)
+
+
+    def pretrained_parameters(self):
+        return list(self.resnet_features.parameters())
+
+    def new_parameters(self):
+        pre_ids = [id(p) for p in self.pretrained_parameters()]
+        return [p for p in self.parameters() if id(p) not in pre_ids]
+
+
+    def optim_parameters(self, learning_rate):
+        return [{'params': self.pretrained_parameters(), 'lr': learning_rate},
+                {'params': self.new_parameters(), 'lr': 10*learning_rate}]
+
+
+
 def unet_resnet50(num_classes, pretrained=True, decoder_width=1):
     feats = ResNetFeatures(resnet.Bottleneck, [3, 4, 6, 3])
     if pretrained:
         feats.load_state_dict(model_zoo.load_url(resnet.model_urls['resnet50']))
     decoder_channels = [c * decoder_width   for c in [32, 48, 64, 96, 128, 192]]
     model = ResNetUNet(feats, [256, 512, 1024, 2048], decoder_channels, num_classes)
+    return model
+
+
+def unet_bn_resnet50(num_classes, pretrained=True, decoder_width=1):
+    feats = ResNetFeatures(resnet.Bottleneck, [3, 4, 6, 3])
+    if pretrained:
+        feats.load_state_dict(model_zoo.load_url(resnet.model_urls['resnet50']))
+    decoder_channels = [c * decoder_width   for c in [32, 48, 64, 96, 128, 192]]
+    model = ResNetUNetBN(feats, [256, 512, 1024, 2048], decoder_channels, num_classes)
     return model
