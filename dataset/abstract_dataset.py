@@ -138,7 +138,7 @@ class FileSystemDataset (AbstractDataset):
         self.read_labels_with_pillow =read_labels_with_pillow
 
     def read_input_image(self, file_list_entry):
-        return cv2.imread(file_list_entry["img"], cv2.IMREAD_COLOR)[::-1]
+        return cv2.imread(file_list_entry["img"], cv2.IMREAD_COLOR)
 
     def read_label_image(self, file_list_entry):
         path = file_list_entry['label']

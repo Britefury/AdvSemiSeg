@@ -61,11 +61,11 @@ class VOCDataSet(abstract_dataset.FileSystemDataset):
 
 if __name__ == '__main__':
     dst = VOCDataSet()
-    trainloader = data.DataLoader(dst, batch_size=4)
+    trainloader = data.DataLoader(dst.train_xy(mean=(0,0,0)), batch_size=4)
     for i, data in enumerate(trainloader):
-        imgs, labels = data
+        imgs, labels, _, _ = data
         if i == 0:
-            img = torchvision.utils.make_grid(imgs).numpy()
+            img = torchvision.utils.make_grid(imgs).numpy()/255.0
             img = np.transpose(img, (1, 2, 0))
             img = img[:, :, ::-1]
             plt.imshow(img)
